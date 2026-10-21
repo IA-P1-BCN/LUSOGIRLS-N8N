@@ -1,5 +1,18 @@
 # 👟 Proyecto: Automatizaciones con n8n · Zapatería Paso Firme
 
+Repositorio del equipo **LUSOGIRLS**: [IA-P1-BCN/LUSOGIRLS-N8N](https://github.com/IA-P1-BCN/LUSOGIRLS-N8N).
+
+**Integrantes:** [Fabiana Leonardo](https://github.com/fabileoruf) y [Rita Pereira](https://github.com/arita-pereira).
+
+Para incorporarse al equipo, clonad este repositorio:
+
+```bash
+git clone https://github.com/IA-P1-BCN/LUSOGIRLS-N8N.git paso-firme
+cd paso-firme
+```
+
+El repositorio del equipo ya está creado y configurado. Continuad desde el **paso 5** de «Cómo empezar»: cada aportación se hace en una rama, con commit, push y Pull Request hacia `main`.
+
 <img width="11520" height="3456" alt="n8n" src="https://github.com/user-attachments/assets/f8bdfbe6-0400-4f8e-a011-efb25c188db4" />
 
 ## 📋 Planteamiento
