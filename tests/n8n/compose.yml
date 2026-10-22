@@ -42,6 +42,13 @@ services:
       - ../../frontend:/srv/frontend:ro
     ports:
       - '127.0.0.1:18000:8000'
+  simulador:
+    image: paso-firme-tienda:latest
+    command: [python, /pruebas/simulador.py]
+    volumes:
+      - ./simulador.py:/pruebas/simulador.py:ro
+    ports:
+      - '127.0.0.1:18080:8080'
 volumes:
   n8n_pruebas:
   registro_pruebas:

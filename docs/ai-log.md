@@ -2,6 +2,8 @@
 
 Registro de prompts, decisiones y evidencias. Solo refleja acciones observadas; una propuesta no equivale a aceptación humana ni a una prueba ejecutada.
 
+Las entradas detalladas de cada implementación se añaden en [docs/ai-log/](ai-log/), un archivo por tarea para evitar conflictos entre las PRs paralelas. Forman parte de esta bitácora.
+
 ## Herramientas y modelos
 
 | Herramienta | Uso observado | Modelo / alcance |

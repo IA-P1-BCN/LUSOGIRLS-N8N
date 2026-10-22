@@ -37,7 +37,8 @@ def prepare_credentials():
         'httpHeaderAuth':('PF · API tienda',{'name':'X-API-Key','value':SECRET}),
     }
     existing=request('/rest/credentials')['data']
-    result={}
+    saved=STATE/'credentials.json'
+    result=json.loads(saved.read_text()) if saved.exists() else {}
     for kind,(name,data) in specs.items():
         found=next((c for c in existing if c['name']==name and c['type']==kind),None)
         if found is None: found=request('/rest/credentials',{'name':name,'type':kind,'data':data})['data']
@@ -49,7 +50,9 @@ def install(path, error_id=None):
     flow=json.loads(Path(path).read_text())
     creds=json.loads((STATE/'credentials.json').read_text())
     for node in flow['nodes']:
-        for kind in node.get('credentials',{}): node['credentials'][kind]=creds[kind]
+        for kind,reference in node.get('credentials',{}).items():
+            selected=creds.get(reference['name'],creds.get(kind))
+            if selected: node['credentials'][kind]=selected
     if error_id: flow['settings']['errorWorkflow']=error_id
     flow.pop('id',None)
     return request('/rest/workflows',flow)['data']
@@ -68,9 +71,16 @@ def sql(query):
     result=subprocess.run(command,check=True,capture_output=True,text=True)
     return result.stdout.strip()
 
-def fixture_flow(path,error_id=None):
+def fixture_flow(path,error_id=None,clock=None):
     from test_08 import webhook, activate
     flow=json.loads(Path(path).read_text())
+    if clock:
+        from datetime import date
+        frozen=date.fromisoformat(clock)
+        replacement=f"const hoy=$now.setZone('Europe/Madrid').set({{year:{frozen.year},month:{frozen.month},day:{frozen.day},hour:9,minute:0,second:0}});"
+        for n in flow['nodes']:
+            if n['name']=='Fijar período':
+                n['parameters']['jsCode']=n['parameters']['jsCode'].replace("const hoy=$now.setZone('Europe/Madrid');",replacement)
     triggers=[n for n in flow['nodes'] if n['type'].split('.')[-1] in ('errorTrigger','scheduleTrigger','executeWorkflowTrigger','manualTrigger','emailReadImap')]
     trigger=triggers[0]
     for other in triggers[1:]:
@@ -94,6 +104,22 @@ def invoke(flow,path,payload):
 
 def message_count():
     return request('/api/v1/messages',base='http://127.0.0.1:18025')['total']
+
+def execution_data(execution_id):
+    raw=request('/rest/executions/'+execution_id)['data']['data']
+    if not isinstance(raw,str): return raw
+    values=json.loads(raw); memo={}
+    def resolve(index):
+        if index in memo:return memo[index]
+        value=values[index]
+        if isinstance(value,dict):
+            out={};memo[index]=out
+            out.update({k:resolve(int(v)) if isinstance(v,str) and v.isdigit() else v for k,v in value.items()});return out
+        if isinstance(value,list):
+            out=[];memo[index]=out
+            out.extend(resolve(int(v)) if isinstance(v,str) and v.isdigit() else v for v in value);return out
+        return value
+    return resolve(0)
 
 if __name__=='__main__':
     import sys

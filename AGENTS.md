@@ -33,7 +33,7 @@ La API usa una credencial Header Auth de n8n con cabecera `X-API-Key`. El valor 
 
 Un único Webhook `POST tienda` recibe `{evento, datos}`. En su salida se leen `$json.body.evento` y `$json.body.datos`; un Switch distribuye los cuatro eventos documentados. El envío de la app no incluye autenticación, ID de evento ni reintentos. No afirmar que es un webhook protegido o una entrega garantizada. Protegerlo requiere coordinar emisor y receptor.
 
-Correo/Telegram, proveedor de IA y almacenamiento auxiliar deben elegirse y configurarse antes de implementar los flujos que los necesiten; todavía no constan como integraciones terminadas. SQLite pertenece a la app: los flujos acceden por API.
+Fabiana autorizó correo local de pruebas (SMTP/Mailpit) y OpenRouter gratuito el 22/10/2026. El registro auxiliar es PostgreSQL, con reservas atómicas; ver `docs/automatizaciones-locales.md`. Las credenciales se configuran por instancia. La conexión al buzón bancario real y los destinos externos necesitan configuración antes de publicarse. SQLite pertenece a la app: los flujos acceden por API.
 
 ## Convenciones
 
