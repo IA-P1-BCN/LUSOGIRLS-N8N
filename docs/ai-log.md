@@ -48,6 +48,15 @@ El enunciado admite IA de pago con alcance delimitado. En esta fase Codex se lim
 - **Validación documental ejecutada el 22/10/2026:** enlaces relativos existentes; JSON legible con 36 identificadores únicos en 10 flujos; fechas límite de 90 días, saldos y sumas en céntimos coherentes; archivos sin la clave local ni patrones de tokens detectados; `git diff --check` sin errores.
 - **Evidencias y revisión:** resultados de esas comprobaciones en la sesión y en la PR. Los contratos de n8n quedan pendientes de ejecución. La revisión humana de Rita y el merge se registran en GitHub, no se dan por hechos aquí.
 
+## 2026-10-22 · B05 · HU-05 / PF-08 y laboratorio
+
+- **Prompt:** «executar minhas tarefas assignadas em projects que estao em ready ... suba as prs e eu peco pra ela aprovar». Fabiana confirma correo local de pruebas, OpenRouter y ampliación para transferencias. Pide además dar rol admin a Rita; se aplicó y verificó `arita-pereira: admin`, sin cambiar las protecciones.
+- **Herramienta:** Codex (variante exacta no verificada), GitHub CLI, Docker y n8n 2.44.5. No se hicieron llamadas a modelos externos en PF-08.
+- **Propuesta implementada:** SMTP Mailpit y registro auxiliar PostgreSQL; reserva atómica, avisos con campos permitidos, instancia de pruebas separada. Los horarios y datos reales se revisan antes de publicar.
+- **Correcciones:** activar el Error Workflow únicamente en laboratorio; esperar el registro del webhook; filtrar el item vacío que Postgres produce cuando la reserva ya existe.
+- **Pruebas observadas:** ejecuciones 8–14, detalladas en [evidencia](pruebas/08-errores.md): error automático real, F08-01/02, duplicados y SMTP fallido sin recursión. JSON importado y recuperado de n8n con IDs de credenciales retirados.
+- **Estado:** entrega para revisión de Rita, sin merge ni activación en la instancia habitual. Configurar PF-08 en los futuros flujos de Rita sigue siendo una acción de integración, no una prueba ya hecha.
+
 ## Plantilla para la siguiente entrada
 
 ```text

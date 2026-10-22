@@ -1,0 +1,48 @@
+name: lusogirls-pruebas
+services:
+  n8n:
+    image: ${PF_TEST_N8N_IMAGE:-docker.n8n.io/n8nio/n8n:2.44.5}
+    environment:
+      TZ: Europe/Madrid
+      GENERIC_TIMEZONE: Europe/Madrid
+      N8N_DIAGNOSTICS_ENABLED: 'false'
+      N8N_VERSION_NOTIFICATIONS_ENABLED: 'false'
+      N8N_SECURE_COOKIE: 'false'
+      N8N_ENCRYPTION_KEY: ${PF_TEST_SECRET:?Ejecuta preparar.py}
+      N8N_ENFORCE_SETTINGS_FILE_PERMISSIONS: 'true'
+    ports:
+      - '127.0.0.1:15678:5678'
+    volumes:
+      - n8n_pruebas:/home/node/.n8n
+      - ../../:/proyecto:ro
+  registro:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: n8n
+      POSTGRES_DB: automatizaciones
+      POSTGRES_PASSWORD: ${PF_TEST_SECRET:?Ejecuta preparar.py}
+    volumes:
+      - registro_pruebas:/var/lib/postgresql/data
+      - ../../infra/registro.sql:/docker-entrypoint-initdb.d/registro.sql:ro
+  correo:
+    image: axllent/mailpit:v1.27
+    ports:
+      - '127.0.0.1:18025:8025'
+  tienda:
+    image: paso-firme-tienda:latest
+    environment:
+      API_KEY: ${PF_TEST_SECRET:?Ejecuta preparar.py}
+      DB_PATH: /data/tienda.db
+      SEED: '1'
+      TZ: Europe/Madrid
+      N8N_WEBHOOK_URL: ''
+    volumes:
+      - tienda_pruebas:/data
+      - ../../backend:/srv/backend:ro
+      - ../../frontend:/srv/frontend:ro
+    ports:
+      - '127.0.0.1:18000:8000'
+volumes:
+  n8n_pruebas:
+  registro_pruebas:
+  tienda_pruebas:
