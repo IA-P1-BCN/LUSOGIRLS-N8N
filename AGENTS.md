@@ -14,7 +14,7 @@ Antes de cambiar un flujo, leer [README.md](README.md), [guía de la app](docs/g
 - Usar `abonado`, `pendiente`, `estado` y `fecha_limite` proporcionados por la app. El modelo de IA no calcula saldos ni decide si se acepta un pago.
 - La app pasa a `liquidado` al llegar a saldo cero, incluso al crear un apartado pagado por completo.
 - Un apartado fuera de plazo puede seguir `activo`: n8n debe llamar a `POST /api/apartados/{id}/vencer`. La app crea el vale por lo abonado; no hay devolución en efectivo.
-- Formas de pago actuales: `efectivo`, `tarjeta`, `bizum`. La representación de una transferencia está pendiente de acuerdo; no etiquetarla como otro medio por iniciativa del agente.
+- Formas de pago: `efectivo`, `tarjeta`, `bizum`, `transferencia`. Fabiana autorizó añadir `transferencia` el 22/10/2026 para HU-03; no etiquetarla como Bizum u otro medio. Mantener ese desglose en cierres e informes.
 - Recaudación = ventas directas + abonos del período, incluidos los iniciales. No sumar además el precio de los apartados ni los vales.
 - Fechas de negocio en `Europe/Madrid`; agregaciones monetarias en céntimos o aritmética decimal, con presentación de dos decimales.
 

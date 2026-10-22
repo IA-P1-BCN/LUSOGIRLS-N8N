@@ -17,4 +17,4 @@ FRONTEND_DIR = Path(os.getenv("FRONTEND_DIR", Path(__file__).resolve().parent.pa
 # --- Reglas del negocio ---
 ABONO_MINIMO = 5
 PLAZO_DIAS = 90
-FORMAS_PAGO = ["efectivo", "tarjeta", "bizum"]
+FORMAS_PAGO = ["efectivo", "tarjeta", "bizum", "transferencia"]

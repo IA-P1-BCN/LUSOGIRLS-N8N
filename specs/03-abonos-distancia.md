@@ -2,7 +2,17 @@
 
 ## Estado y alcance
 
-Propuesta con una discrepancia bloqueante para transferencias. [HU-03 / #4](https://github.com/IA-P1-BCN/LUSOGIRLS-N8N/issues/4). Autora: Fabiana; revisora: Rita. Entidades: PagoDetectado, Cliente, Apartado y Abono.
+Implementación para revisión. [HU-03 / #4](https://github.com/IA-P1-BCN/LUSOGIRLS-N8N/issues/4). Autora: Fabiana; revisora: Rita. Entidades: PagoDetectado, Cliente, Apartado y Abono.
+
+## Decisiones de implementación · 22/10/2026
+
+Fabiana autoriza añadir `transferencia` como medio propio en la API y la interfaz, sin migrar ni reinterpretar pagos existentes. El caso de Lucía mantiene su expectativa original. Autoriza OpenRouter `openrouter/free`, limitado a proveedores con precio cero, y SMTP local con Mailpit para los avisos. Se integra con el registro PostgreSQL de PF-08.
+
+El disparador definitivo es IMAP con credencial de buzón por configurar. Las pruebas importan los `.eml` como entradas de un adaptador local, con Message-ID ficticio estable porque los archivos originales no lo incluyen. Una entrada sin ID estable no puede crear abonos.
+
+La IA extrae; se contrasta su extracción con el importe, ordenante, concepto y medio presentes en el texto bancario. Nombre completo de la app como prefijo de los tokens del ordenante, al menos dos tokens completos y candidato único; una inicial solo se admite junto a un número de apartado explícito en el texto y concordancia del nombre. Una abreviatura sin ID nunca autoriza un pago. Para Laura se usa el candidato posible solo para explicar el exceso, nunca para registrar.
+
+Reserva atómica por cuenta/Message-ID y bloqueo auxiliar por apartado antes de reconsultar el saldo y hacer el POST. Un resultado incierto conserva reserva/bloqueo para conciliación; no hay reintento automático del POST. No se genera recibo aquí: el evento normal de la app lo entrega a PF-02 de Rita cuando esté integrado.
 
 ## Disparador y entradas
 
@@ -16,7 +26,7 @@ Correo nuevo de un buzón de pruebas Gmail/IMAP; Form Trigger solo como adaptado
 4. Registrar una vez con `POST /api/apartados/{id}/abonos`. El evento de la app dispara PF-02; PF-03 no envía un segundo recibo.
 5. Si no hay certeza, hay exceso o está fuera de plazo: cero abonos, aviso a Marisa con el motivo y petición de revisión cuando corresponda.
 
-La API solo admite `efectivo`, `tarjeta`, `bizum`. El correo de Lucía pide una transferencia que debe liquidar 12 €; **no enviar `forma_pago=transferencia` ni falsearla como otro medio**. La ejecución de ese caso queda bloqueada hasta acordar y documentar una adaptación. El resultado exigido por HU-03 sigue siendo liquidar correctamente, no cambiar el contrato para darlo por aprobado.
+La ampliación autorizada añade `transferencia` a `FORMAS_PAGO`. El correo de Lucía registra 12 € con ese medio y liquida el apartado. El resultado exigido por HU-03 se conserva; no se falsea como Bizum ni efectivo.
 
 ## Errores e idempotencia
 

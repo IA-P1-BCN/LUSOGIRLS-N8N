@@ -59,7 +59,7 @@ export function paginacion(pagina, paginas, total, base) {
 export const opcionesFormaPago = (formas, actual = "efectivo") =>
   formas.map((f) => `<option value="${esc(f)}" ${f === actual ? "selected" : ""}>${esc(capitalizar(f))}</option>`).join("");
 
-export const FORMAS_PAGO = ["efectivo", "tarjeta", "bizum"];
+export const FORMAS_PAGO = ["efectivo", "tarjeta", "bizum", "transferencia"];
 
 export function alerta(tipo, texto) {
   const clase = tipo === "error" ? "alert-error" : "alert-ok";
