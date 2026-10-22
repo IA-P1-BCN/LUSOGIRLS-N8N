@@ -1,6 +1,6 @@
 # Importar, probar y exportar workflows
 
-Aquí se guardarán los JSON de los flujos implementados. Todavía no hay exportaciones funcionales: el Webhook inicial observado en n8n no completa ninguna historia de usuario.
+Aquí se guardan los JSON de los flujos implementados. PF-08 dispone de exportación y [evidencia de ejecución](../docs/pruebas/08-errores.md). Ver [servicios y laboratorio](../docs/automatizaciones-locales.md) para preparar las credenciales compartidas. Cada nueva PR añade su propio flujo y evidencia; el Webhook inicial de Fabiana se conserva.
 
 ## Importar en el editor
 
