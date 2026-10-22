@@ -1,3 +1,5 @@
 .env
+.env.local
+tests/n8n/.estado/
 __pycache__/
 *.db

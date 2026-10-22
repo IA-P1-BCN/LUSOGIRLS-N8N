@@ -1,0 +1,21 @@
+services:
+  registro:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: automatizaciones
+      POSTGRES_USER: n8n
+      POSTGRES_PASSWORD: ${REGISTRO_PASSWORD:?Configura REGISTRO_PASSWORD en .env}
+    volumes:
+      - registro_data:/var/lib/postgresql/data
+      - ./infra/registro.sql:/docker-entrypoint-initdb.d/registro.sql:ro
+    healthcheck:
+      test: [CMD-SHELL, pg_isready -U n8n -d automatizaciones]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+  correo:
+    image: axllent/mailpit:v1.27
+    ports:
+      - '127.0.0.1:8025:8025'
+volumes:
+  registro_data:
