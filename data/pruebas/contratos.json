@@ -1,0 +1,1046 @@
+{
+  "version": 1,
+  "status": "Contratos propuestos; pruebas de workflows pendientes de ejecucion",
+  "timezone": "Europe/Madrid",
+  "cases": [
+    {
+      "id": "F00-01",
+      "flow": "PF-00",
+      "description": "Encaminar un apartado creado",
+      "input": {
+        "payload": {
+          "evento": "apartado.creado",
+          "datos": {
+            "id": 9001,
+            "fecha": "2026-10-21",
+            "cliente": "Cliente Demo",
+            "telefono": null,
+            "email": "cliente@example.com",
+            "producto": "Botin demo",
+            "talla": "38",
+            "precio": 89.9,
+            "fecha_limite": "2027-01-19",
+            "estado": "activo",
+            "abonado": 10.0,
+            "pendiente": 79.9
+          }
+        }
+      },
+      "expected": {
+        "route": "PF-01",
+        "business_writes": 0
+      }
+    },
+    {
+      "id": "F00-02",
+      "flow": "PF-00",
+      "description": "Descartar un evento desconocido",
+      "input": {
+        "payload": {
+          "evento": "evento.desconocido",
+          "datos": {}
+        }
+      },
+      "expected": {
+        "route": null,
+        "incident": true,
+        "customer_messages": 0,
+        "business_writes": 0
+      }
+    },
+    {
+      "id": "F01-01",
+      "flow": "PF-01",
+      "description": "Confirmar un apartado con email de prueba",
+      "input": {
+        "payload": {
+          "evento": "apartado.creado",
+          "datos": {
+            "id": 9001,
+            "fecha": "2026-10-21",
+            "cliente": "Cliente Demo",
+            "telefono": null,
+            "email": "cliente@example.com",
+            "producto": "Botin demo",
+            "talla": "38",
+            "precio": 89.9,
+            "fecha_limite": "2027-01-19",
+            "estado": "activo",
+            "abonado": 10.0,
+            "pendiente": 79.9
+          }
+        },
+        "confirmed_notifications": []
+      },
+      "expected": {
+        "customer_messages": 1,
+        "marisa_messages": 0,
+        "fields": {
+          "producto": "Botin demo",
+          "talla": "38",
+          "precio": 89.9,
+          "abonado": 10.0,
+          "pendiente": 79.9,
+          "fecha_limite": "2027-01-19"
+        },
+        "business_writes": 0
+      }
+    },
+    {
+      "id": "F01-02",
+      "flow": "PF-01",
+      "description": "Avisar a la tienda cuando falta email",
+      "input": {
+        "payload": {
+          "evento": "apartado.creado",
+          "datos": {
+            "id": 9001,
+            "fecha": "2026-10-21",
+            "cliente": "Cliente Demo",
+            "telefono": null,
+            "email": null,
+            "producto": "Botin demo",
+            "talla": "38",
+            "precio": 89.9,
+            "fecha_limite": "2027-01-19",
+            "estado": "activo",
+            "abonado": 10.0,
+            "pendiente": 79.9
+          }
+        }
+      },
+      "expected": {
+        "customer_messages": 0,
+        "marisa_messages": 1,
+        "reason": "email_ausente",
+        "business_writes": 0
+      }
+    },
+    {
+      "id": "F01-03",
+      "flow": "PF-01",
+      "description": "No repetir una confirmacion enviada",
+      "input": {
+        "payload": {
+          "evento": "apartado.creado",
+          "datos": {
+            "id": 9001,
+            "fecha": "2026-10-21",
+            "cliente": "Cliente Demo",
+            "telefono": null,
+            "email": "cliente@example.com",
+            "producto": "Botin demo",
+            "talla": "38",
+            "precio": 89.9,
+            "fecha_limite": "2027-01-19",
+            "estado": "activo",
+            "abonado": 10.0,
+            "pendiente": 79.9
+          }
+        },
+        "confirmed_notifications": [
+          "apartado.creado:9001"
+        ]
+      },
+      "expected": {
+        "customer_messages": 0,
+        "business_writes": 0
+      }
+    },
+    {
+      "id": "F02-01",
+      "flow": "PF-02",
+      "description": "Recibo de pago parcial",
+      "input": {
+        "payload": {
+          "evento": "abono.registrado",
+          "datos": {
+            "id": 9001,
+            "fecha": "2026-10-21",
+            "cliente": "Cliente Demo",
+            "telefono": null,
+            "email": "cliente@example.com",
+            "producto": "Botin demo",
+            "talla": "38",
+            "precio": 89.9,
+            "fecha_limite": "2027-01-19",
+            "estado": "activo",
+            "abonado": 30.0,
+            "pendiente": 59.9,
+            "importe": 20.0
+          }
+        }
+      },
+      "expected": {
+        "customer_messages": 1,
+        "importe": 20.0,
+        "pendiente": 59.9,
+        "recogida": false,
+        "business_writes": 0
+      }
+    },
+    {
+      "id": "F02-02",
+      "flow": "PF-02",
+      "description": "Aviso de recogida al liquidar",
+      "input": {
+        "payload": {
+          "evento": "abono.registrado",
+          "datos": {
+            "id": 9001,
+            "fecha": "2026-10-21",
+            "cliente": "Cliente Demo",
+            "telefono": null,
+            "email": "cliente@example.com",
+            "producto": "Botin demo",
+            "talla": "38",
+            "precio": 89.9,
+            "fecha_limite": "2027-01-19",
+            "estado": "liquidado",
+            "abonado": 89.9,
+            "pendiente": 0.0,
+            "importe": 59.9
+          }
+        }
+      },
+      "expected": {
+        "customer_messages": 1,
+        "importe": 59.9,
+        "pendiente": 0.0,
+        "recogida": true,
+        "business_writes": 0
+      }
+    },
+    {
+      "id": "F02-03",
+      "flow": "PF-02",
+      "description": "Dos pagos iguales son operaciones distintas",
+      "input": {
+        "payloads": [
+          {
+            "evento": "abono.registrado",
+            "datos": {
+              "id": 9001,
+              "fecha": "2026-10-21",
+              "cliente": "Cliente Demo",
+              "telefono": null,
+              "email": "cliente@example.com",
+              "producto": "Botin demo",
+              "talla": "38",
+              "precio": 89.9,
+              "fecha_limite": "2027-01-19",
+              "estado": "activo",
+              "abonado": 30.0,
+              "pendiente": 59.9,
+              "importe": 20.0
+            }
+          },
+          {
+            "evento": "abono.registrado",
+            "datos": {
+              "id": 9001,
+              "fecha": "2026-10-21",
+              "cliente": "Cliente Demo",
+              "telefono": null,
+              "email": "cliente@example.com",
+              "producto": "Botin demo",
+              "talla": "38",
+              "precio": 89.9,
+              "fecha_limite": "2027-01-19",
+              "estado": "activo",
+              "abonado": 50.0,
+              "pendiente": 39.9,
+              "importe": 20.0
+            }
+          }
+        ],
+        "confirmed_notifications": []
+      },
+      "expected": {
+        "customer_messages": 2,
+        "pending_balances": [
+          59.9,
+          39.9
+        ],
+        "business_writes": 0
+      }
+    },
+    {
+      "id": "F03-01",
+      "flow": "PF-03",
+      "description": "01_bizum_carmen.eml",
+      "input": {
+        "email_fixture": "../correos/01_bizum_carmen.eml",
+        "message_id": "correo-demo-1",
+        "precondition": "Copia aislada de la semilla actual con las precondiciones de backend/tests/test_datos_de_ejemplo.py; sin pagos previos de otro caso."
+      },
+      "expected": {
+        "post_count": 1,
+        "apartado_id": 1,
+        "importe": 10.0,
+        "forma_pago": "bizum"
+      }
+    },
+    {
+      "id": "F03-02",
+      "flow": "PF-03",
+      "description": "02_bizum_jorge.eml",
+      "input": {
+        "email_fixture": "../correos/02_bizum_jorge.eml",
+        "message_id": "correo-demo-2",
+        "precondition": "Copia aislada de la semilla actual con las precondiciones de backend/tests/test_datos_de_ejemplo.py; sin pagos previos de otro caso."
+      },
+      "expected": {
+        "post_count": 1,
+        "apartado_id": 2,
+        "importe": 20.0,
+        "forma_pago": "bizum"
+      }
+    },
+    {
+      "id": "F03-03",
+      "flow": "PF-03",
+      "description": "03_transferencia_lucia.eml",
+      "input": {
+        "email_fixture": "../correos/03_transferencia_lucia.eml",
+        "message_id": "correo-demo-3",
+        "precondition": "Copia aislada de la semilla actual con las precondiciones de backend/tests/test_datos_de_ejemplo.py; sin pagos previos de otro caso."
+      },
+      "expected": {
+        "post_count": 1,
+        "apartado_id": 3,
+        "importe": 12.0,
+        "estado": "liquidado",
+        "pendiente": 0.0
+      },
+      "blocked_by": "Acordar la representacion de transferencia en la API; no ejecutar el POST hasta resolverlo."
+    },
+    {
+      "id": "F03-04",
+      "flow": "PF-03",
+      "description": "04_bizum_laura.eml",
+      "input": {
+        "email_fixture": "../correos/04_bizum_laura.eml",
+        "message_id": "correo-demo-4",
+        "precondition": "Copia aislada de la semilla actual con las precondiciones de backend/tests/test_datos_de_ejemplo.py; sin pagos previos de otro caso."
+      },
+      "expected": {
+        "post_count": 0,
+        "marisa_messages": 1,
+        "reason": "exceso_sobre_pendiente_del_candidato"
+      }
+    },
+    {
+      "id": "F03-05",
+      "flow": "PF-03",
+      "description": "05_bizum_romero.eml",
+      "input": {
+        "email_fixture": "../correos/05_bizum_romero.eml",
+        "message_id": "correo-demo-5",
+        "precondition": "Copia aislada de la semilla actual con las precondiciones de backend/tests/test_datos_de_ejemplo.py; sin pagos previos de otro caso."
+      },
+      "expected": {
+        "post_count": 0,
+        "marisa_messages": 1,
+        "reason": "identidad_insuficiente"
+      }
+    },
+    {
+      "id": "F03-06",
+      "flow": "PF-03",
+      "description": "06_bizum_paula.eml",
+      "input": {
+        "email_fixture": "../correos/06_bizum_paula.eml",
+        "message_id": "correo-demo-6",
+        "precondition": "Copia aislada de la semilla actual con las precondiciones de backend/tests/test_datos_de_ejemplo.py; sin pagos previos de otro caso."
+      },
+      "expected": {
+        "post_count": 0,
+        "marisa_messages": 1,
+        "reason": "fuera_de_plazo"
+      }
+    },
+    {
+      "id": "F03-07",
+      "flow": "PF-03",
+      "description": "07_transferencia_desconocido.eml",
+      "input": {
+        "email_fixture": "../correos/07_transferencia_desconocido.eml",
+        "message_id": "correo-demo-7",
+        "precondition": "Copia aislada de la semilla actual con las precondiciones de backend/tests/test_datos_de_ejemplo.py; sin pagos previos de otro caso."
+      },
+      "expected": {
+        "post_count": 0,
+        "marisa_messages": 1,
+        "reason": "cliente_desconocido"
+      }
+    },
+    {
+      "id": "F03-08",
+      "flow": "PF-03",
+      "description": "08_publicidad_banco.eml",
+      "input": {
+        "email_fixture": "../correos/08_publicidad_banco.eml",
+        "message_id": "correo-demo-8",
+        "precondition": "Copia aislada de la semilla actual con las precondiciones de backend/tests/test_datos_de_ejemplo.py; sin pagos previos de otro caso."
+      },
+      "expected": {
+        "post_count": 0,
+        "marisa_messages": 0,
+        "ignored": true
+      }
+    },
+    {
+      "id": "F03-09",
+      "flow": "PF-03",
+      "description": "09_bizum_silvia.eml",
+      "input": {
+        "email_fixture": "../correos/09_bizum_silvia.eml",
+        "message_id": "correo-demo-9",
+        "precondition": "Copia aislada de la semilla actual con las precondiciones de backend/tests/test_datos_de_ejemplo.py; sin pagos previos de otro caso."
+      },
+      "expected": {
+        "post_count": 1,
+        "apartado_id": 24,
+        "importe": 5.0,
+        "forma_pago": "bizum"
+      }
+    },
+    {
+      "id": "F03-10",
+      "flow": "PF-03",
+      "description": "No registrar dos veces el mismo correo",
+      "input": {
+        "email_fixture": "../correos/01_bizum_carmen.eml",
+        "message_id": "correo-demo-1",
+        "payment_ledger": {
+          "correo-demo-1": "confirmado"
+        }
+      },
+      "expected": {
+        "post_count": 0
+      }
+    },
+    {
+      "id": "F03-11",
+      "flow": "PF-03",
+      "description": "La IA no devuelve una extraccion valida",
+      "input": {
+        "model_output": "No es un objeto JSON valido"
+      },
+      "expected": {
+        "post_count": 0,
+        "error_workflow": true
+      }
+    },
+    {
+      "id": "F04-01",
+      "flow": "PF-04",
+      "description": "Venta superior al umbral de prueba",
+      "input": {
+        "payload": {
+          "evento": "venta.registrada",
+          "datos": {
+            "id": 9101,
+            "fecha": "2026-10-21",
+            "concepto": "Venta demo",
+            "importe": 100.01,
+            "forma_pago": "tarjeta"
+          }
+        },
+        "variables": {
+          "UMBRAL_VENTA_GRANDE": 100
+        }
+      },
+      "expected": {
+        "marisa_messages": 1,
+        "business_writes": 0
+      }
+    },
+    {
+      "id": "F04-02",
+      "flow": "PF-04",
+      "description": "Igual al umbral no es superior",
+      "input": {
+        "payload": {
+          "evento": "venta.registrada",
+          "datos": {
+            "id": 9102,
+            "fecha": "2026-10-21",
+            "concepto": "Venta demo",
+            "importe": 100,
+            "forma_pago": "tarjeta"
+          }
+        },
+        "variables": {
+          "UMBRAL_VENTA_GRANDE": 100
+        }
+      },
+      "expected": {
+        "marisa_messages": 0,
+        "business_writes": 0
+      }
+    },
+    {
+      "id": "F04-03",
+      "flow": "PF-04",
+      "description": "Variable de umbral ausente",
+      "input": {
+        "payload": {
+          "evento": "venta.registrada",
+          "datos": {
+            "id": 9103,
+            "fecha": "2026-10-21",
+            "concepto": "Venta demo",
+            "importe": 100.01,
+            "forma_pago": "tarjeta"
+          }
+        },
+        "variables": {}
+      },
+      "expected": {
+        "sale_alerts": 0,
+        "configuration_error": true,
+        "business_writes": 0
+      }
+    },
+    {
+      "id": "F05-01",
+      "flow": "PF-05",
+      "description": "Cierre completo con inicial y decimales",
+      "input": {
+        "fecha_cierre": "2026-10-21",
+        "ventas": [
+          {
+            "id": 1,
+            "fecha": "2026-10-21",
+            "concepto": "Venta demo",
+            "importe": 20,
+            "forma_pago": "efectivo"
+          },
+          {
+            "id": 2,
+            "fecha": "2026-10-21",
+            "concepto": "Venta demo",
+            "importe": 30,
+            "forma_pago": "tarjeta"
+          }
+        ],
+        "abonos": [
+          {
+            "id": 1,
+            "apartado_id": 9001,
+            "fecha": "2026-10-21",
+            "importe": 5,
+            "forma_pago": "efectivo"
+          },
+          {
+            "id": 2,
+            "apartado_id": 9001,
+            "fecha": "2026-10-21",
+            "importe": 10,
+            "forma_pago": "bizum"
+          },
+          {
+            "id": 3,
+            "apartado_id": 9001,
+            "fecha": "2026-10-21",
+            "importe": 0.1,
+            "forma_pago": "tarjeta"
+          },
+          {
+            "id": 4,
+            "apartado_id": 9001,
+            "fecha": "2026-10-21",
+            "importe": 0.2,
+            "forma_pago": "tarjeta"
+          }
+        ],
+        "initial_abono_ids": [
+          1
+        ]
+      },
+      "expected": {
+        "ventas_centimos": 5000,
+        "abonos_centimos": 1530,
+        "total_centimos": 6530,
+        "por_forma_pago_centimos": {
+          "efectivo": 2500,
+          "tarjeta": 3030,
+          "bizum": 1000
+        },
+        "closure_rows": 1,
+        "marisa_messages": 1
+      }
+    },
+    {
+      "id": "F05-02",
+      "flow": "PF-05",
+      "description": "Dia sin movimientos",
+      "input": {
+        "fecha_cierre": "2026-10-21",
+        "ventas": [],
+        "abonos": []
+      },
+      "expected": {
+        "ventas_centimos": 0,
+        "abonos_centimos": 0,
+        "total_centimos": 0,
+        "por_forma_pago_centimos": {
+          "efectivo": 0,
+          "tarjeta": 0,
+          "bizum": 0
+        },
+        "closure_rows": 1,
+        "marisa_messages": 1,
+        "sin_movimientos": true
+      }
+    },
+    {
+      "id": "F05-03",
+      "flow": "PF-05",
+      "description": "Una fuente no responde",
+      "input": {
+        "fecha_cierre": "2026-10-21",
+        "ventas": [
+          {
+            "id": 1,
+            "fecha": "2026-10-21",
+            "concepto": "Venta demo",
+            "importe": 20,
+            "forma_pago": "efectivo"
+          }
+        ],
+        "abonos_response": {
+          "status": 503
+        },
+        "read_retries_exhausted": true
+      },
+      "expected": {
+        "completed_closure_rows": 0,
+        "completed_reports_sent": 0,
+        "error_workflow": true
+      }
+    },
+    {
+      "id": "F06-01",
+      "flow": "PF-06",
+      "description": "Recordatorio siete dias antes",
+      "input": {
+        "hoy": "2026-10-21",
+        "apartados": [
+          {
+            "id": 9001,
+            "fecha": "2026-07-30",
+            "cliente": "Cliente Demo",
+            "telefono": null,
+            "email": "cliente@example.com",
+            "producto": "Botin demo",
+            "talla": "38",
+            "precio": 89.9,
+            "fecha_limite": "2026-10-28",
+            "estado": "activo",
+            "abonado": 10.0,
+            "pendiente": 79.9
+          }
+        ],
+        "confirmed_notifications": []
+      },
+      "expected": {
+        "reminders": 1,
+        "days_remaining": 7,
+        "vencer_post_count": 0,
+        "pendiente": 79.9
+      }
+    },
+    {
+      "id": "F06-02",
+      "flow": "PF-06",
+      "description": "No repetir el recordatorio de un dia",
+      "input": {
+        "hoy": "2026-10-21",
+        "apartados": [
+          {
+            "id": 9002,
+            "fecha": "2026-07-24",
+            "cliente": "Cliente Demo",
+            "telefono": null,
+            "email": "cliente@example.com",
+            "producto": "Botin demo",
+            "talla": "38",
+            "precio": 89.9,
+            "fecha_limite": "2026-10-22",
+            "estado": "activo",
+            "abonado": 10.0,
+            "pendiente": 79.9
+          }
+        ],
+        "confirmed_notifications": [
+          "9002:2026-10-22:1:email"
+        ]
+      },
+      "expected": {
+        "reminders": 0,
+        "vencer_post_count": 0
+      }
+    },
+    {
+      "id": "F06-03",
+      "flow": "PF-06",
+      "description": "No vencer en el dia limite",
+      "input": {
+        "hoy": "2026-10-21",
+        "apartados": [
+          {
+            "id": 9003,
+            "fecha": "2026-07-23",
+            "cliente": "Cliente Demo",
+            "telefono": null,
+            "email": "cliente@example.com",
+            "producto": "Botin demo",
+            "talla": "38",
+            "precio": 89.9,
+            "fecha_limite": "2026-10-21",
+            "estado": "activo",
+            "abonado": 10.0,
+            "pendiente": 79.9
+          }
+        ]
+      },
+      "expected": {
+        "reminders": 0,
+        "vencer_post_count": 0
+      }
+    },
+    {
+      "id": "F06-04",
+      "flow": "PF-06",
+      "description": "Vencer y usar el vale de la API",
+      "input": {
+        "hoy": "2026-10-21",
+        "apartados": [
+          {
+            "id": 9004,
+            "fecha": "2026-07-22",
+            "cliente": "Cliente Demo",
+            "telefono": null,
+            "email": "cliente@example.com",
+            "producto": "Botin demo",
+            "talla": "38",
+            "precio": 89.9,
+            "fecha_limite": "2026-10-20",
+            "estado": "activo",
+            "abonado": 10.0,
+            "pendiente": 79.9
+          }
+        ],
+        "vencer_response": {
+          "apartado": {
+            "id": 9004,
+            "fecha": "2026-07-22",
+            "cliente": "Cliente Demo",
+            "telefono": null,
+            "email": "cliente@example.com",
+            "producto": "Botin demo",
+            "talla": "38",
+            "precio": 89.9,
+            "fecha_limite": "2026-10-20",
+            "estado": "vencido",
+            "abonado": 10.0,
+            "pendiente": 79.9
+          },
+          "vale": {
+            "id": 9201,
+            "codigo": "VALE-09004",
+            "apartado_id": 9004,
+            "fecha": "2026-10-21",
+            "importe": 10.0,
+            "usado": 0
+          }
+        }
+      },
+      "expected": {
+        "vencer_post_count": 1,
+        "customer_messages": 1,
+        "marisa_messages": 1,
+        "vale_codigo": "VALE-09004",
+        "vale_importe": 10.0
+      }
+    },
+    {
+      "id": "F07-01",
+      "flow": "PF-07",
+      "description": "Contar cada estado por su fecha correcta",
+      "input": {
+        "hoy": "2026-10-01",
+        "ventas": [
+          {
+            "id": 10,
+            "fecha": "2026-09-20",
+            "concepto": "Venta demo",
+            "importe": 20,
+            "forma_pago": "efectivo"
+          },
+          {
+            "id": 11,
+            "fecha": "2026-09-29",
+            "concepto": "Venta demo",
+            "importe": 30,
+            "forma_pago": "tarjeta"
+          }
+        ],
+        "abonos": [
+          {
+            "id": 10,
+            "apartado_id": 9301,
+            "fecha": "2026-09-15",
+            "importe": 10,
+            "forma_pago": "efectivo"
+          },
+          {
+            "id": 12,
+            "apartado_id": 9302,
+            "fecha": "2026-09-10",
+            "importe": 30,
+            "forma_pago": "bizum"
+          }
+        ],
+        "apartados": [
+          {
+            "id": 9301,
+            "fecha": "2026-09-15",
+            "cliente": "Cliente Demo",
+            "telefono": null,
+            "email": "cliente@example.com",
+            "producto": "Botin demo",
+            "talla": "38",
+            "precio": 50,
+            "fecha_limite": "2026-12-14",
+            "estado": "activo",
+            "abonado": 10,
+            "pendiente": 40
+          },
+          {
+            "id": 9302,
+            "fecha": "2026-08-01",
+            "cliente": "Cliente Demo",
+            "telefono": null,
+            "email": "cliente@example.com",
+            "producto": "Botin demo",
+            "talla": "38",
+            "precio": 40,
+            "fecha_limite": "2026-10-30",
+            "estado": "liquidado",
+            "abonado": 40,
+            "pendiente": 0
+          },
+          {
+            "id": 9303,
+            "fecha": "2026-05-01",
+            "cliente": "Cliente Demo",
+            "telefono": null,
+            "email": "cliente@example.com",
+            "producto": "Botin demo",
+            "talla": "38",
+            "precio": 40,
+            "fecha_limite": "2026-07-30",
+            "estado": "vencido",
+            "abonado": 5,
+            "pendiente": 35
+          }
+        ],
+        "detalles": {
+          "9302": {
+            "id": 9302,
+            "fecha": "2026-08-01",
+            "cliente": "Cliente Demo",
+            "telefono": null,
+            "email": "cliente@example.com",
+            "producto": "Botin demo",
+            "talla": "38",
+            "precio": 40,
+            "fecha_limite": "2026-10-30",
+            "estado": "liquidado",
+            "abonado": 40,
+            "pendiente": 0,
+            "abonos": [
+              {
+                "id": 11,
+                "apartado_id": 9302,
+                "fecha": "2026-08-01",
+                "importe": 10,
+                "forma_pago": "efectivo"
+              },
+              {
+                "id": 12,
+                "apartado_id": 9302,
+                "fecha": "2026-09-10",
+                "importe": 30,
+                "forma_pago": "bizum"
+              }
+            ],
+            "vale": null
+          }
+        },
+        "vales": [
+          {
+            "id": 9301,
+            "codigo": "VALE-09303",
+            "apartado_id": 9303,
+            "fecha": "2026-09-20",
+            "importe": 5,
+            "usado": 0
+          }
+        ]
+      },
+      "expected": {
+        "periodo_desde": "2026-09-01",
+        "periodo_hasta": "2026-09-30",
+        "ventas_centimos": 5000,
+        "abonos_centimos": 4000,
+        "total_centimos": 9000,
+        "pendiente_actual_centimos": 4000,
+        "nuevos": 1,
+        "liquidados": 1,
+        "vencidos": 1
+      }
+    },
+    {
+      "id": "F07-02",
+      "flow": "PF-07",
+      "description": "Mes anterior en cambio de ano y sin movimientos",
+      "input": {
+        "hoy": "2027-01-01",
+        "ventas": [],
+        "abonos": [],
+        "apartados": [],
+        "detalles": {},
+        "vales": []
+      },
+      "expected": {
+        "periodo_desde": "2026-12-01",
+        "periodo_hasta": "2026-12-31",
+        "total_centimos": 0,
+        "pendiente_actual_centimos": 0,
+        "nuevos": 0,
+        "liquidados": 0,
+        "vencidos": 0
+      }
+    },
+    {
+      "id": "F08-01",
+      "flow": "PF-08",
+      "description": "Sanitizar datos de un error",
+      "input": {
+        "error_payload": {
+          "workflow": {
+            "id": "demo-workflow",
+            "name": "PF-05 · Cierre diario"
+          },
+          "execution": {
+            "id": "demo-execution",
+            "lastNodeExecuted": "Consultar abonos",
+            "error": {
+              "message": "HTTP 401; Authorization: CREDENCIAL_FICTICIA"
+            }
+          }
+        }
+      },
+      "expected": {
+        "marisa_messages": 1,
+        "workflow_name": "PF-05 · Cierre diario",
+        "step": "Consultar abonos",
+        "summary": "Fallo de autenticacion en la API",
+        "must_not_contain": [
+          "CREDENCIAL_FICTICIA",
+          "Authorization"
+        ]
+      }
+    },
+    {
+      "id": "F08-02",
+      "flow": "PF-08",
+      "description": "Error sin ID de ejecucion ni paso",
+      "input": {
+        "error_payload": {
+          "workflow": {
+            "id": "demo-workflow",
+            "name": "PF-05 · Cierre diario"
+          },
+          "trigger": {
+            "error": {
+              "message": "Fallo de trigger de prueba"
+            }
+          }
+        }
+      },
+      "expected": {
+        "marisa_messages": 1,
+        "missing_step_label": "no disponible",
+        "fabricated_execution_id": false
+      }
+    },
+    {
+      "id": "F09-01",
+      "flow": "PF-09",
+      "description": "Normalizar sin inventar medio de pago",
+      "input": {
+        "row": {
+          "fecha": "7/9/26",
+          "cliente": "Ana Torres",
+          "telefono": "",
+          "modelo": "Mocasin ante",
+          "talla": "39",
+          "precio": "72",
+          "abono": "15€",
+          "resta": "57"
+        }
+      },
+      "expected": {
+        "normalized": {
+          "fecha": "2026-09-07",
+          "precio": 72.0,
+          "abono_inicial": 15.0
+        },
+        "post_count": 0,
+        "needs_review": "forma_pago_ausente"
+      }
+    },
+    {
+      "id": "F09-02",
+      "flow": "PF-09",
+      "description": "Rechazar inicial inferior al minimo",
+      "input": {
+        "row": {
+          "fecha": "03/09/2026",
+          "cliente": "Lucia Gomez",
+          "precio": "45",
+          "abono": "4",
+          "resta": "41"
+        }
+      },
+      "expected": {
+        "post_count": 0,
+        "needs_review": "abono_inicial_menor_que_5",
+        "hold_related_rows": true
+      }
+    },
+    {
+      "id": "F09-03",
+      "flow": "PF-09",
+      "description": "No convertir un total manual en una venta",
+      "input": {
+        "row": {
+          "fecha": "TOTAL SEPTIEMBRE (a mano)",
+          "concepto": "",
+          "importe": "1.842,30",
+          "forma_pago": ""
+        }
+      },
+      "expected": {
+        "post_count": 0,
+        "ignored_as": "total_manual"
+      }
+    }
+  ]
+}

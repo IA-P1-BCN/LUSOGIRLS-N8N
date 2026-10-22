@@ -11,7 +11,22 @@ git clone https://github.com/IA-P1-BCN/LUSOGIRLS-N8N.git paso-firme
 cd paso-firme
 ```
 
-El repositorio del equipo ya está creado y configurado. Continuad desde el **paso 5** de «Cómo empezar»: cada aportación se hace en una rama, con commit, push y Pull Request hacia `main`.
+El repositorio del equipo ya está creado y configurado. La rama de trabajo es **`dev`**: cada aportación se hace en una rama de tarea, con commit, push y Pull Request hacia `dev`. La compañera revisa y aprueba antes del merge. `main` queda para entregas mediante una PR desde `dev`.
+
+## Documentación del equipo
+
+| Documento | Para qué sirve |
+| --- | --- |
+| [AGENTS.md](AGENTS.md) | Contexto y reglas que sigue el agente |
+| [Ontología](docs/ontologia.md) | Entidades, relaciones y contratos reales de la app |
+| [Especificaciones](specs/README.md) | Diseño de cada automatización antes de implementarla |
+| [Forma de trabajo](docs/forma-de-trabajo.md) | Branches, revisión cruzada y pruebas |
+| [Kanban](docs/kanban.md) | Historias del Projects y reparto existente |
+| [Importar y exportar](workflows/README.md) | Uso de los JSON en n8n y en Git |
+| [Contratos de prueba](data/pruebas/README.md) | Datos ficticios y resultados esperados |
+| [Bitácora de IA](docs/ai-log.md) | Prompts, decisiones y evidencias reales |
+
+Estas specs son propuestas para revisión. Los flujos todavía deben implementarse, importarse, probarse y revisarse; la documentación no acredita una automatización terminada.
 
 <img width="11520" height="3456" alt="n8n" src="https://github.com/user-attachments/assets/f8bdfbe6-0400-4f8e-a011-efb25c188db4" />
 
@@ -104,12 +119,18 @@ Si usáis GitHub CLI, los pasos de crear y enlazar se hacen en uno: `gh repo cre
 
 **5. A partir de aquí, todo se sube a vuestro repositorio** con el flujo de siempre (rama, commit, push y Pull Request):
 
+En LUSOGIRLS, la base y el destino de las PRs de trabajo es `dev`:
+
 ```bash
-git switch -c flujo-confirmacion-apartado
+git switch dev
+git pull --ff-only origin dev
+git switch -c flujo/01-confirmacion-apartado
 git add .
 git commit -m "Añade flujo de confirmación de apartado"
-git push -u origin flujo-confirmacion-apartado
+git push -u origin flujo/01-confirmacion-apartado
 ```
+
+Abrir la PR hacia `dev` y solicitar la revisión de la compañera. Ver [forma de trabajo](docs/forma-de-trabajo.md).
 
 Comprobad en cualquier momento a dónde apunta vuestro proyecto con `git remote -v`: tiene que salir vuestro repositorio, no el de Factoría F5.
 
