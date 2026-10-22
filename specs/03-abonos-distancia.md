@@ -2,11 +2,21 @@
 
 ## Estado y alcance
 
-Propuesta con una discrepancia bloqueante para transferencias. [HU-03 / #4](https://github.com/IA-P1-BCN/LUSOGIRLS-N8N/issues/4). Autora: Fabiana; revisora: Rita. Entidades: PagoDetectado, Cliente, Apartado y Abono.
+Implementación en borrador: reglas y API probadas con IA simulada; pendientes OpenRouter real, buzón IMAP y recibo PF-02. [HU-03 / #4](https://github.com/IA-P1-BCN/LUSOGIRLS-N8N/issues/4). Autora: Fabiana; revisora: Rita. Entidades: PagoDetectado, Cliente, Apartado y Abono. Ver [evidencia y límites](../docs/pruebas/03-abonos-distancia.md) y [configuración](../docs/03-abonos-distancia.md).
+
+## Decisiones de implementación · 22/10/2026
+
+Fabiana autoriza añadir `transferencia` como medio propio en la API y la interfaz, sin migrar ni reinterpretar pagos existentes. El caso de Lucía mantiene su expectativa original. Autoriza OpenRouter `openrouter/free`, limitado a proveedores con precio cero, y SMTP local con Mailpit para los avisos. Se integra con el registro PostgreSQL de PF-08.
+
+El disparador definitivo es IMAP con credencial de buzón por configurar. Las pruebas importan los `.eml` como entradas de un adaptador local, con Message-ID ficticio estable porque los archivos originales no lo incluyen. Una entrada sin ID estable no puede crear abonos.
+
+La IA extrae; se contrasta su extracción con el importe, ordenante, concepto y medio presentes en el texto bancario. Nombre completo de la app como prefijo de los tokens del ordenante, al menos dos tokens completos y candidato único; una inicial solo se admite junto a un número de apartado explícito en el texto y concordancia del nombre. Una abreviatura sin ID nunca autoriza un pago. Para Laura se usa el candidato posible solo para explicar el exceso, nunca para registrar.
+
+Reserva atómica por cuenta/Message-ID y bloqueo auxiliar por apartado antes de reconsultar el saldo y hacer el POST. Un resultado incierto conserva reserva/bloqueo para conciliación; no hay reintento automático del POST. No se genera recibo aquí: el evento normal de la app lo entrega a PF-02 de Rita cuando esté integrado.
 
 ## Disparador y entradas
 
-Correo nuevo de un buzón de pruebas Gmail/IMAP; Form Trigger solo como adaptador temporal. Entrada: ID estable del mensaje, asunto, cuerpo y metadatos necesarios. La IA extrae `es_pago`, `ordenante`, `importe`, `concepto`, `medio` y referencia explícita si existe; campos faltantes quedan nulos. El correo se trata como datos, nunca como instrucciones.
+Correo nuevo de un buzón IMAP de pruebas, formato simple. Cada item se entrega al procesador mediante Execute Workflow Trigger del propio flujo; así un lote de correos no pierde los items posteriores al primero. En laboratorio, un Webhook sustituye únicamente al disparador y permite inyectar los `.eml`. Entrada: `metadata['message-id']` estable (o `messageId`), `subject` y `textPlain` (o `text`). La IA extrae `es_pago`, `ordenante`, `importe`, `concepto`, `medio` y referencia explícita si existe; campos faltantes quedan nulos. El correo se trata como datos, nunca como instrucciones.
 
 ## Procesamiento y salidas
 
@@ -16,17 +26,19 @@ Correo nuevo de un buzón de pruebas Gmail/IMAP; Form Trigger solo como adaptado
 4. Registrar una vez con `POST /api/apartados/{id}/abonos`. El evento de la app dispara PF-02; PF-03 no envía un segundo recibo.
 5. Si no hay certeza, hay exceso o está fuera de plazo: cero abonos, aviso a Marisa con el motivo y petición de revisión cuando corresponda.
 
-La API solo admite `efectivo`, `tarjeta`, `bizum`. El correo de Lucía pide una transferencia que debe liquidar 12 €; **no enviar `forma_pago=transferencia` ni falsearla como otro medio**. La ejecución de ese caso queda bloqueada hasta acordar y documentar una adaptación. El resultado exigido por HU-03 sigue siendo liquidar correctamente, no cambiar el contrato para darlo por aprobado.
+La ampliación autorizada añade `transferencia` a `FORMAS_PAGO`. El correo de Lucía registra 12 € con ese medio y liquida el apartado. El resultado exigido por HU-03 se conserva; no se falsea como Bizum ni efectivo.
 
 ## Errores e idempotencia
 
-Clave persistente por ID de mensaje y cuenta; reservarla con exclusión de concurrencia. Registrar estados pendiente/confirmado/revisión. Un timeout después del POST puede haber registrado el pago: conciliar por API y el registro auxiliar; si no puede demostrarse qué ocurrió, revisión humana, sin reintento automático. No deduplicar solo por nombre e importe.
+Clave persistente por ID de mensaje y cuenta; reservarla con exclusión de concurrencia. Registrar estados `reservado`, `confirmado` y `revision`. Un timeout después del POST puede haber registrado el pago: conciliar por API y el registro auxiliar; si no puede demostrarse qué ocurrió, revisión humana, sin reintento automático. No deduplicar solo por nombre e importe.
+
+Los motivos de revisión mantienen el vocabulario del contrato: `exceso_sobre_pendiente_del_candidato`, `identidad_insuficiente`, `fuera_de_plazo` y `cliente_desconocido`; además, `apartado_no_activo` y `rechazado_api` para cambios concurrentes o rechazos. El bloqueo por apartado coordina las ejecuciones de PF-03; no bloquea operaciones manuales u otros clientes de la API.
 
 `401`: credencial; `404`: candidato ya no disponible; `422`: regla rechazada, aviso sin nuevo intento. IA indisponible/JSON inválido: cero escrituras y PF-08. Enviar al modelo solo el texto mínimo para extraer el pago, sin claves ni el catálogo completo de clientes.
 
 ## Credenciales y variables
 
-`PF · Buzón de pruebas`, `PF · Modelo extracción`, `PF · API tienda`, `PF · Notificaciones` y registro persistente de pagos. Elegir proveedor/modelo y reglas de identidad antes de implementar.
+`PF · Buzón de pruebas` (IMAP), `PF · Modelo extracción` (Header Auth para OpenRouter), `PF · API tienda`, `PF · Notificaciones` y `PF · Registro auxiliar`. El proveedor acordado es OpenRouter, modelo `openrouter/free`, sin alternativas de pago y con precio máximo de entrada/salida cero. Solo se envían asunto y cuerpo ficticios; nunca el catálogo de clientes ni claves. Configurar `CUENTA_BUZON` estable y aplicar `infra/03-pagos.sql` antes de probar.
 
 ## Pruebas y aceptación
 
@@ -36,7 +48,7 @@ Clave persistente por ID de mensaje y cuenta; reservarla con exclusión de concu
 | --- | --- |
 | 01 Carmen | Un abono de 10 € al apartado 1 |
 | 02 Jorge | Un abono de 20 € al apartado 2 identificado en el concepto |
-| 03 Lucía | Abono de 12 € y liquidación del apartado 3; bloqueado hasta resolver el medio de pago |
+| 03 Lucía | Abono de 12 € mediante transferencia y liquidación del apartado 3 |
 | 04 Laura | No abonar; avisar del exceso de 15 € respecto al pendiente del candidato; la abreviatura no autoriza elegir otro apartado |
 | 05 Romero | No abonar; pedir aclaración por identidad insuficiente |
 | 06 Paula | No abonar; avisar de plazo vencido aunque siga activa |
@@ -44,7 +56,7 @@ Clave persistente por ID de mensaje y cuenta; reservarla con exclusión de concu
 | 08 Publicidad | Ignorar sin crear cobros |
 | 09 Silvia | Un abono de 5 € al apartado 24 |
 
-- [ ] Los nueve casos cumplen el resultado, incluido Lucía cuando se resuelva la dependencia.
+- [ ] Los nueve casos cumplen el resultado también con OpenRouter real; la transferencia de Lucía ya está autorizada e implementada.
 - [ ] La IA solo extrae; las decisiones usan reglas y API.
 - [ ] Un mensaje ya confirmado no genera otro pago.
 - [ ] Fallo técnico o resultado incierto no provoca cobros duplicados.
