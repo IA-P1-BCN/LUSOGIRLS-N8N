@@ -51,7 +51,8 @@ def install(path, error_id=None):
     creds=json.loads((STATE/'credentials.json').read_text())
     for node in flow['nodes']:
         for kind,reference in node.get('credentials',{}).items():
-            selected=creds.get(reference['name'],creds.get(kind))
+            fallback=creds.get(kind)
+            selected=creds.get(reference['name']) or (fallback if fallback and fallback['name']==reference['name'] else None)
             if selected: node['credentials'][kind]=selected
     if error_id: flow['settings']['errorWorkflow']=error_id
     flow.pop('id',None)
@@ -71,9 +72,16 @@ def sql(query):
     result=subprocess.run(command,check=True,capture_output=True,text=True)
     return result.stdout.strip()
 
-def fixture_flow(path,error_id=None,clock=None):
+def fixture_flow(path,error_id=None,clock=None,model_mock=False):
     from test_08 import webhook, activate
     flow=json.loads(Path(path).read_text())
+    if model_mock:
+        for n in flow['nodes']:
+            if n['name']=='Extraer pago':
+                n['parameters']['url']='http://simulador:8080/chat/completions'
+                n['parameters'].pop('authentication',None)
+                n['parameters'].pop('genericAuthType',None)
+                n.pop('credentials',None)
     if clock:
         from datetime import date
         frozen=date.fromisoformat(clock)

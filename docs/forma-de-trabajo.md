@@ -46,18 +46,18 @@ Para una tarea de implementación, Done significa criterios satisfechos, evidenc
 - Guardar resultados observados con fecha, versión/commit, ID de ejecución de n8n, esperado, obtenido y resultado. Usar [la plantilla de evidencia](../data/pruebas/README.md).
 - No enviar mensajes a contactos reales durante pruebas; usar un destino de prueba controlado o inspeccionar la salida sin envío.
 
-## Decisiones pendientes antes de implementar
+## Decisiones y configuración pendiente
 
 | Decisión | Qué debe acordarse |
 | --- | --- |
-| Canal de mensajes | Correo o Telegram; credenciales y destinatario de prueba, luego destino autorizado de Marisa. |
-| Proveedor/modelo IA | Modelo disponible y coste verificado al elegirlo; no activar un modelo de pago por defecto. |
-| Transferencias | La API no acepta ese medio; decidir una adaptación con el equipo/docente sin falsear los datos. |
-| Registro auxiliar | Tecnología para cierres, deduplicación y notificaciones, con persistencia y acceso controlado. Sheets es candidato, no está conectado. |
+| Canal de mensajes | Fabiana autoriza SMTP/Mailpit local para pruebas el 22/10/2026. El destino real de Marisa queda por configurar. |
+| Proveedor/modelo IA | OpenRouter `openrouter/free`, autorizado por Fabiana. Precio máximo de entrada/salida cero y sin alternativas de pago. Pendiente validar la credencial y ejecutar los casos con el proveedor real. |
+| Transferencias | Fabiana autoriza el medio `transferencia` en API e interfaz. La PR de PF-03 conserva el resultado del caso de Lucía; no se etiqueta como Bizum. |
+| Registro auxiliar | PostgreSQL para configuración no secreta, reservas atómicas y estados de envío/pago; integrado en la infraestructura de PF-08. |
 | Horarios | Propuesta: cierre 00:05 del día anterior completo, recordatorios 09:00, informe día 1 a las 09:00, en Europe/Madrid. Confirmar con Marisa/equipo. |
 | Umbral de venta | Variable configurable, sin importe de negocio inventado. 100 € se usa solo como valor de un caso de prueba. |
 | Seguridad del webhook | El emisor actual no manda cabecera de autenticación. Una futura protección debe cambiar ambos lados; no publicar el demo como solución de HU-14. |
 
 ## Primer siguiente paso
 
-Revisar PF-00 y PF-01 con Rita, elegir el canal/destino de prueba y validar un evento de apartado. La configuración de un Webhook aislado no equivale a tener implementada la confirmación al cliente.
+Revisar las PRs pendientes e integrar los consumidores de Rita con el contrato de PF-00. Validar la credencial OpenRouter, el buzón IMAP y el recibo PF-02 antes de cerrar HU-03. La configuración de un Webhook aislado no equivale a tener implementada la confirmación al cliente.

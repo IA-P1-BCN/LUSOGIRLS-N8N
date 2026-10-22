@@ -4,7 +4,7 @@ from email import policy
 from email.parser import BytesParser
 import json,uuid,subprocess,time,os
 from lab import ROOT,STATE,SECRET,ENV,login,prepare_credentials,fixture_flow,invoke,sql,request,message_count,install,export,execution_data
-from test_08 import activate
+from test_08 import activate,executions,finished
 
 root=Path(__file__).resolve().parents[2]
 live=os.environ.get('PF_TEST_OPENROUTER')=='1'
@@ -53,10 +53,21 @@ try:
         after=api('/api/abonos');new=[a for a in after if a['id'] not in {b['id'] for b in before}]
         if f[6]:
             assert len(new)==1 and new[0]['apartado_id']==f[6] and new[0]['importe']==f[2] and new[0]['forma_pago']==f[4],new
-            if f[0]==3:assert api('/api/apartados/3')['estado']=='liquidado'
+            assert message_count()==before_messages
+            if f[0]==3:
+                detail=api('/api/apartados/3')
+                assert detail['estado']=='liquidado' and detail['pendiente']==0
         else:
             assert not new
             assert message_count()==before_messages+(0 if f[0]==8 else 1)
+        if f[0]!=8:
+            key='correo:'+prefix+':'+mail['metadata']['message-id']
+            row=json.loads(sql("SELECT jsonb_build_object('estado',estado,'documento',documento) FROM pf_registro WHERE clave='"+key.replace("'","''")+"'"))
+            assert row['estado']==('confirmado' if f[6] else 'revision')
+            if not f[6]:
+                reason={4:'exceso_sobre_pendiente_del_candidato',5:'identidad_insuficiente',6:'fuera_de_plazo',7:'cliente_desconocido'}[f[0]]
+                assert row['documento']['motivo']==reason
+                assert row['documento']['aviso_confirmado'] is True
         evidence.append({'caso':f'F03-{f[0]:02d}','ejecucion':run['id'],'abonos_nuevos':len(new),'modelo':'OpenRouter real' if live else 'doble IA','resultado':'PASS'});print(json.dumps(evidence[-1]),flush=True)
         if live:time.sleep(3)
     before=api('/api/abonos')
@@ -68,10 +79,27 @@ try:
     if not live:
         mail['metadata']['message-id']='<invalid-json@pruebas.example.test>'
         request('/__fixture',{'llm_content':'No es JSON'},base='http://127.0.0.1:18080')
+        previous=[e['id'] for e in executions(error_id)]
+        before_messages=message_count()
         run=invoke(flow,endpoint,mail)
         assert run['status']=='error' and api('/api/abonos')==before
-        evidence.append({'caso':'F03-11 IA inválida','ejecucion':run['id'],'resultado':'PASS'});print(json.dumps(evidence[-1]),flush=True)
-        new=request('/api/apartados',{'cliente':'Cliente Prueba','producto':'Prueba','precio':20,'abono_inicial':5},base='http://127.0.0.1:18000',headers={'X-API-Key':SECRET})
+        handler=finished(error_id,previous)
+        assert handler['status']=='success' and message_count()==before_messages+1
+        evidence.append({'caso':'F03-11 IA inválida','ejecucion':run['id'],'ejecucion_pf08':handler['id'],'resultado':'PASS'});print(json.dumps(evidence[-1]),flush=True)
+        # Un importe inventado por la IA nunca autoriza un pago.
+        mail['metadata']['message-id']='<mismatch@pruebas.example.test>'
+        forged=extract(fixtures[0]);forged['importe']=9
+        request('/__fixture',{'extraction':forged},base='http://127.0.0.1:18080')
+        previous=[e['id'] for e in executions(error_id)]
+        run=invoke(flow,endpoint,mail)
+        assert run['status']=='error' and api('/api/abonos')==before
+        assert finished(error_id,previous)['status']=='success'
+        evidence.append({'caso':'Importe IA distinto al correo','ejecucion':run['id'],'resultado':'PASS'});print(json.dumps(evidence[-1]),flush=True)
+        # Los bloqueos de pruebas anteriores se conservan como evidencia. Usar otro ID.
+        for attempt in range(100):
+            new=request('/api/apartados',{'cliente':'Cliente Prueba','producto':'Prueba','precio':20,'abono_inicial':5},base='http://127.0.0.1:18000',headers={'X-API-Key':SECRET})
+            if sql('SELECT count(*) FROM pf_bloqueos_apartado WHERE apartado_id='+str(new['id']))=='0':break
+        else:raise AssertionError('No hay apartado de prueba libre de bloqueos previos')
         amount={'es_pago':True,'ordenante':'CLIENTE PRUEBA','importe':1,'concepto':'apartado '+str(new['id']),'medio':'bizum','apartado_id':new['id']}
         mail={'subject':'Bizum recibido','textPlain':'Importe: 1,00 EUR\nOrdenante: CLIENTE PRUEBA\nConcepto: apartado '+str(new['id']),'metadata':{'message-id':'<timeout@pruebas.example.test>'}}
         request('/__fixture',{'extraction':amount,'proxy_tienda':True,'timeout_after_post':True},base='http://127.0.0.1:18080')
