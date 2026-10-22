@@ -1,5 +1,7 @@
 # PF-00 · Entrada de eventos
 
+Implementación propuesta junto a HU-09: [contrato de conexión y evidencia](../docs/pruebas/04-venta-grande.md). Se conservan las asignaciones; los destinos de Rita solo se referencian mediante configuración y no se implementan en esta PR.
+
 ## Estado y alcance
 
 Propuesta para revisión. Entrada compartida de las automatizaciones; el nodo inicial existe, pero el router no está implementado. Coordinar su edición con la compañera.
