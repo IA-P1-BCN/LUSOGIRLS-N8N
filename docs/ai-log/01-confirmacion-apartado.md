@@ -1,0 +1,11 @@
+# 22-23/10/2026 · HU-01 / PF-01 Confirmación de apartado
+
+- Prompts de Rita: «HU-01 - Confirmación al apartar. Antes de empezar, lee el estado del proyecto, AGENTS.md, specs y algo más que te diga agents.md»; «Guiado, para learn by doing»; «quiero guiado pero con el código».
+- Herramientas: Claude (Claude Code en claude.ai, modelo configurado `claude-opus-5-5`) para leer el repo, proponer el diseño, redactar el código por bloques, limpiar el JSON exportado y redactar spec, evidencia y esta entrada. Rita construyó y ejecutó el flujo en su n8n local, hizo los commits y validó cada prueba. Sin modelo de IA dentro del flujo.
+- Diseño: se sigue el patrón de PF-04 ya integrado (configuración en `pf_config`, documento `{clave, tipo, documento}`, reserva atómica en `pf_registro`, un único `Enviar aviso`, `Confirmar envío`). Se reutilizan los nombres de nodos de PF-04 para que PF-08 los reconozca; se añaden a su lista `Recibir apartado de PF-00` y `Validar apartado`.
+- Decisión de Rita: claves separadas, `apartado.creado:<id>` (cliente) y `apartado.creado:<id>:tienda` (aviso a Marisa), para que un aviso a la tienda no bloquee una confirmación posterior al cliente. Cambia la clave propuesta en la spec; se señala en la PR para revisión expresa de Fabiana.
+- Importes: solo formato de presentación (dos decimales con coma, fecha dd/mm/aaaa a partir del texto, sin zona horaria). Ninguna operación sobre las cifras.
+- Errores encontrados y corregidos: espacios delante de `{{` en Query Parameters al pegar (corregidos antes de exportar); zona horaria heredada por defecto de la instancia, fijada explícitamente a `Europe/Madrid`; PF-00 y PF-08 importados por error dentro de PF-01 (Import from File añade nodos al workflow abierto), deshecho con Cmd+Z; `N8N_WEBHOOK_URL` duplicado en el `.env` local tras una comprobación mal filtrada, dejado en una sola línea.
+- Exportación: se retiraron IDs de credenciales, id, versionId, instanceId y datos fijados; nodos, código y conexiones sin cambios respecto a lo probado.
+- Evidencia: [pruebas y ejecuciones](../pruebas/01-confirmacion-apartado.md), con la prueba integrada app → PF-00 (28) → PF-01 (29).
+- Estado: pendiente test de laboratorio, push y PR hacia `dev`. Sin publicaciones en n8n ni merge.
