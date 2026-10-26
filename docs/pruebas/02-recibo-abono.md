@@ -2,6 +2,18 @@
 
 Instancia local de Rita (Docker del proyecto con la infraestructura compartida de #32: PostgreSQL `registro` y SMTP Mailpit `correo`). Flujos sin publicar. Correos solo a direcciones ficticias en Mailpit; ningún envío al exterior.
 
+## Prueba integrada con la app y PF-00
+
+Recorrido: app (registro de un abono de 20 € al apartado n.º 25, efectivo) → `N8N_WEBHOOK_URL` en modo test (`/webhook-test/tienda`, listener abierto en PF-00) → PF-00 → `Ejecutar PF-02` → reserva → SMTP → `confirmado`. `PF02_WORKFLOW_ID` configurado en `pf_config` con el ID de PF-02 en la instancia.
+
+| Paso | Hora | Ejecución | Resultado |
+| --- | --- | --- | --- |
+| Abono registrado en la app | 14:15 | - | Apartado n.º 25 (Cliente Demo, `cliente@example.com`, Botin demo, talla 38, precio 89,90 €, activo): abonado de 10,00 € a 30,00 € y pendiente de 79,90 € a 59,90 € |
+| PF-00 recibe y enruta | 14:15 | 38 | Correcta; rama `abono.registrado` |
+| PF-02 envía el recibo | 14:15 | 39 | Correcta; un correo a `cliente@example.com` |
+
+Correo recibido en Mailpit a las 14:15, asunto «Paso Firme · Recibo de tu abono al apartado n.º 25». Contenido: modelo Botin demo, talla 38, importe de este abono 20,00 €, total abonado 30,00 €, pendiente 59,90 €, sin aviso de recogida. Las cifras son las que devolvió la app; PF-02 solo les da formato. `pf_registro`: `abono.registrado:25:3000:2000`, `recibo_abono`, `confirmado` (ejecución 39).
+
 ## Casos de contrato (ejecución manual en el editor)
 
 PF-02 se creó duplicando PF-01 en la instancia de Rita y renombrando `Recibir abono de PF-00` y `Validar abono`. Datos fijados en el disparador con el contrato de PF-00 `{body: {evento, datos}, workflow_id}` y los `datos` de [F02-01 a F02-03](../../data/pruebas/contratos.json). Para no chocar con reservas previas del registro local, F02-03 y el caso sin correo usaron los IDs 9004 y 9005 en lugar de 9001; el resto de campos son los del contrato.
@@ -36,6 +48,5 @@ Resultado: los siete casos pasaron. Comparación de ventas, abonos, apartados y 
 
 ## Pendiente fuera de esta PR
 
-- Prueba integrada con un abono real desde la app (`N8N_WEBHOOK_URL` en modo test, `PF02_WORKFLOW_ID` en `pf_config` de la instancia habitual). Hasta entonces, el recorrido PF-00 a PF-02 está probado solo en el laboratorio.
 - La lista de pasos de `workflows/08-errores.json` debe incluir `Recibir abono de PF-00` y `Validar abono`. El caso «Importe ausente» se ejecutó con esa lista ampliada; se incorpora a esta PR cuando la de HU-01, que modifica la misma lista, esté integrada en `dev`.
 - Seleccionar PF-08 como Error Workflow de PF-02 en la instancia habitual cuando se autorice publicar PF-08 (n8n 2.x solo permite elegir Error Workflows publicados). En el laboratorio ya está asociado.

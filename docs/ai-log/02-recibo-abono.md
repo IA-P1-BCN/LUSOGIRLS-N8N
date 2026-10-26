@@ -7,6 +7,6 @@
 - Importes: solo formato de presentación. Los céntimos de la clave se obtienen del texto del número, como `cent()` de PF-04, sin multiplicar decimales.
 - Errores encontrados y corregidos: el disparador se configuró primero con «Define using JSON example»; se cambió a «Accept all data» con datos fijados, como PF-01. Al preparar F02-02 el estado se dejó en `activo` con pendiente 0: el flujo mandó el aviso de saldo contradictorio (ejecución 32), que se conserva como evidencia de ese caso.
 - Exportación: se retiraron id, versionId, instanceId, datos fijados e IDs de credenciales; `availableInMCP` pasa a `false` como en PF-01. Nodos, código y conexiones sin cambios respecto a lo probado.
-- Evidencia: [pruebas y ejecuciones](../pruebas/02-recibo-abono.md): ejecuciones manuales 31 a 37 y laboratorio 61 a 82.
+- Evidencia: [pruebas y ejecuciones](../pruebas/02-recibo-abono.md): prueba integrada app → PF-00 (38) → PF-02 (39), ejecuciones manuales 31 a 37 y laboratorio 61 a 82.
 - Test de laboratorio (26/10): Claude escribió `tests/n8n/test_02.py` a partir de `test_01.py`; Rita lo ejecutó y pasaron F02-01, F02-02, F02-03 (con repetición), sin correo, correo no válido, saldo contradictorio e importe ausente. Como `test_01.py`, no reexporta los JSON al repo.
-- Estado: PR hacia `dev` pendiente. Falta la prueba integrada con la app y añadir `Recibir abono de PF-00` y `Validar abono` a la lista de PF-08 cuando entre la PR de HU-01. Sin publicaciones en la instancia habitual ni merge.
+- Estado: PR hacia `dev` pendiente. Falta añadir `Recibir abono de PF-00` y `Validar abono` a la lista de PF-08 cuando entre la PR de HU-01. Sin publicaciones en la instancia habitual ni merge.

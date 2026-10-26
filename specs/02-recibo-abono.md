@@ -43,5 +43,5 @@ Importe ausente, estado desconocido o saldo contradictorio: incidencia sin recib
 - [x] Cada abono nuevo produce un recibo con el importe y saldo que da la app.
 - [x] Liquidación: mensaje de recogida y pendiente cero.
 - [x] Repetir el mismo evento no duplica; dos pagos distintos de igual importe sí producen dos recibos.
-- [ ] Sin email se avisa a la tienda; errores técnicos quedan trazados sin secretos.
+- [x] Sin email se avisa a la tienda; errores técnicos quedan trazados sin secretos.
 - [ ] Evidencias y JSON exportado revisados por la compañera.
