@@ -29,7 +29,19 @@ API, notificaciones, registro auxiliar, horario y canal acordados. El canal y la
 
 [F06-01 a F06-04](../data/pruebas/contratos.json): 7 días, 1 día con aviso previo, límite hoy y plazo superado con respuesta de la API.
 
-- [ ] Un aviso por hito, con importe y fecha reales.
-- [ ] Solo activos con fecha límite anterior a hoy se solicitan vencer.
-- [ ] Vale y avisos corresponden a la respuesta real; no hay doble notificación.
-- [ ] Fallos y ausencia de correo quedan visibles para Marisa.
+- [x] Un aviso por hito, con importe y fecha reales.
+- [x] Solo activos con fecha límite anterior a hoy se solicitan vencer.
+- [x] Vale y avisos corresponden a la respuesta real; no hay doble notificación.
+- [x] Fallos y ausencia de correo quedan visibles para Marisa.
+
+## Decisiones de implementación · 26/10/2026
+
+Para revisión expresa de Fabiana en la PR de HU-06.
+
+- Dos disparadores en un mismo workflow: `Programar revisión diaria` (cron `0 9 * * *`, `Europe/Madrid`) y `Recibir vencimiento de PF-00` (Execute Workflow Trigger, recibe `{body: {evento, datos}, workflow_id}`). PF-00 lo encuentra con `PF06_WORKFLOW_ID` en `pf_config`.
+- `hoy` se fija una vez al inicio en `Europe/Madrid`. Los días restantes se calculan entre fechas de calendario, sin horas.
+- Claves de recordatorio: `<apartado_id>:<fecha_limite>:<7|1>:email` para el cliente y `<apartado_id>:<fecha_limite>:<7|1>:marisa` cuando falta el correo.
+- Claves de vencimiento: `vale:<codigo>:cliente` y `vale:<codigo>:marisa`. Son las mismas desde el calendario, desde el evento `apartado.vencido` y desde la conciliación, así que solo la primera reserva envía. Esto evita el doble aviso: el controlador `vencer` de la app emite `apartado.vencido` también cuando el vencimiento lo pide PF-06.
+- `POST /api/apartados/{id}/vencer` sin reintentos y sin cortar el flujo ante error. Después se relee siempre `GET /api/apartados/{id}` y se decide con su estado: `vencido` con vale avisa, `liquidado` no avisa, `activo` u otro resultado incoherente genera incidencia en PF-08. Cubre el `422` (otro proceso cambió el apartado, o el servidor considera que aún no vence) y el timeout sin repetir el POST.
+- Conciliación: cada mañana se leen `GET /api/vales` (la API no filtra) y se concilian los vales de los últimos 7 días de calendario, hoy incluido. Ventana fija decidida por Rita el 26/10/2026 para no avisar de los vales antiguos de los datos de ejemplo.
+- El aviso a Marisa se envía siempre tras un vencimiento (liberar el par). Si el cliente no tiene correo, ese mismo aviso lo indica e incluye el teléfono si existe.
