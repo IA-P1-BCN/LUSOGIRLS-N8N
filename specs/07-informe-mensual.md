@@ -6,7 +6,7 @@ Propuesta de nivel Medio. [HU-08 / #9](https://github.com/IA-P1-BCN/LUSOGIRLS-N8
 
 ## Decisiones de implementación · 22/10/2026
 
-SMTP local autorizado por Fabiana y registro auxiliar PostgreSQL de PF-08. Horario de demostración: día 1 a las 09:00 Europe/Madrid. Se consultan todas las listas sin paginar y se contrasta `X-Total-Count` cuando lo proporciona la API. Solo los apartados liquidados necesitan consulta de detalle. La rama sin liquidados llega igualmente al cálculo, incluso con listas vacías.
+SMTP local autorizado por Fabiana y registro auxiliar PostgreSQL de PF-08. Horario de demostración: día 1 a las 09:00 Europe/Madrid. Se consultan todas las listas sin paginar y se exige y contrasta `X-Total-Count` en ventas y apartados. Solo los apartados liquidados necesitan consulta de detalle. La rama sin liquidados llega igualmente al cálculo, incluso con listas vacías.
 
 El pendiente incluye los apartados todavía activos aunque estén fuera de plazo; se etiqueta con el instante actual de medición. Reserva atómica por período/destino; el documento persistente se confirma tras SMTP. Una reserva incierta requiere conciliación, no reintento automático. La configuración real y la activación quedan para revisión humana.
 
