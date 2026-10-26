@@ -1,6 +1,6 @@
 # Configurar y revisar PF-03
 
-El flujo sigue en borrador. Las pruebas de negocio usan datos ficticios, API real aislada, IA simulada y entrada IMAP real local. Para cerrar la historia faltan OpenRouter real y el recibo PF-02 de Rita; la conexión al buzón bancario externo y la publicación requieren configuración posterior.
+El flujo está en validación; la PR #36 está abierta para revisión. Las pruebas de negocio usan datos ficticios, API real aislada, IA simulada y entrada IMAP real local. La integración con PF-02 de #38 ya pasó los nueve correos y la repetición. Para cerrar la historia faltan OpenRouter real, resolver la revisión pendiente de PF-02 y la revisión cruzada; la conexión al buzón bancario externo y la publicación requieren configuración posterior.
 
 ## Credenciales de cada integrante
 
@@ -47,7 +47,7 @@ Para una prueba del proveedor real, crear en el n8n de laboratorio una credencia
 
 Un timeout o una respuesta incierta después de `Registrar abono` deja la reserva del mensaje y el bloqueo del apartado. Repetir el correo no repite el POST. La persona revisora debe contrastar la ejecución, el correo y `GET /api/apartados/{id}`. Si no puede demostrar si el abono se creó, conservar el bloqueo y pedir conciliación; no borrar filas ni cambiar el Message-ID para forzar otro intento. El bloqueo solo coordina PF-03 y no impide que una persona modifique el apartado desde la app.
 
-Un pago aceptado emite el evento normal `abono.registrado`. PF-00 lo entregará a PF-02 cuando Rita lo integre. PF-03 no envía un segundo recibo; la prueba conjunta sigue pendiente.
+Un pago aceptado emite el evento normal `abono.registrado`. PF-00 lo entrega a PF-02 cuando se configura `PF02_WORKFLOW_ID`. PF-03 no envía un segundo recibo. La prueba conjunta con el PF-02 de #38 pasó en el laboratorio con IA simulada; ver [evidencia](pruebas/03-abonos-distancia.md).
 
 ## Repetir la recepción IMAP local
 
@@ -72,4 +72,20 @@ Referencia: [servidor de pruebas GreenMail](https://greenmail-mail-test.github.i
 - Salida: recibo con `importe`, `abonado` y `pendiente` dados por la API; cuando `estado=liquidado`, aviso de recogida. Sin email, incidencia a la tienda conforme a su spec.
 - Conexión: configurar `PF02_WORKFLOW_ID` con el ID importado en cada instancia y verificar un pago parcial, una liquidación y la repetición sin segundo recibo.
 
-PF-03 ya registra el pago por API y depende de ese consumidor para verificar el recibo completo. La credencial de OpenRouter y su validación son una pendiente de Fabiana, independiente de la entrega de Rita. Hasta resolver ambas partes, la PR #36 permanece en borrador.
+PF-03 registra el pago por API y la integración con el consumidor de #38 ya está comprobada para los casos bancarios originales. La credencial de OpenRouter y su validación son una pendiente de Fabiana, independiente de la corrección de talla en PF-02. La PR #36 está abierta para revisión; HU-03 continúa en progreso hasta completar los criterios y la revisión cruzada.
+
+## Prueba conjunta de pagos y recibos
+
+`tests/n8n/test_03_recibos.py` recorre SMTP → IMAP → PF-03 → API → PF-00 → PF-02. Comprueba los nueve correos originales, los destinatarios y cifras de los recibos, el aviso de recogida al liquidar, las revisiones sin cobro y la repetición sin otro abono ni recibo. Necesita GreenMail y un laboratorio sin workflows activos.
+
+Mientras PF-02 esté en una PR independiente, guardar su exportación exacta fuera de los archivos versionados e indicar la ruta. Por ejemplo, desde una copia con la rama de #38 descargada:
+
+```bash
+mkdir -p tests/n8n/.estado/dependencias
+git show origin/flujo/02-recibo-abono:workflows/02-recibo-abono.json > tests/n8n/.estado/dependencias/02-recibo-abono.json
+PF_TEST_PF02_PATH=tests/n8n/.estado/dependencias/02-recibo-abono.json python3 tests/n8n/test_03_recibos.py
+```
+
+Añadir `PF_TEST_OPENROUTER=1` para conservar la llamada a OpenRouter con la credencial nativa configurada. Sin esa variable, la extracción es simulada y queda identificada así en la evidencia. El script no modifica el JSON de PF-02 ni el de PF-03; solo selecciona las credenciales del laboratorio y limita el IMAP a los mensajes de su corrida.
+
+Cada corrida crea una base PostgreSQL auxiliar y una base semilla de tienda propias. Se conservan ambas, los mensajes y las ejecuciones; no borra registros anteriores. Al terminar, restaura la configuración anterior de la tienda, contrasta sus datos por API y desactiva sus workflows. La evidencia incremental, incluido el SHA-256 del PF-02 utilizado, queda en `tests/n8n/.estado/qa_recibos_*/evidencia.json`. No ejecutar contra servicios de producción.

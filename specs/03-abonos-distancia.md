@@ -2,7 +2,7 @@
 
 ## Estado y alcance
 
-Implementación en borrador: reglas, API e IMAP local probados con IA simulada; pendientes OpenRouter real y recibo PF-02. [HU-03 / #4](https://github.com/IA-P1-BCN/LUSOGIRLS-N8N/issues/4). Autora: Fabiana; revisora: Rita. Entidades: PagoDetectado, Cliente, Apartado y Abono. Ver [evidencia y límites](../docs/pruebas/03-abonos-distancia.md) y [configuración](../docs/03-abonos-distancia.md).
+Implementación en validación: reglas, API, IMAP local y recibos de PF-02 (#38) probados con IA simulada; pendientes OpenRouter real y revisión cruzada, incluida la corrección de talla opcional de PF-02. [HU-03 / #4](https://github.com/IA-P1-BCN/LUSOGIRLS-N8N/issues/4). Autora: Fabiana; revisora: Rita. Entidades: PagoDetectado, Cliente, Apartado y Abono. Ver [evidencia y límites](../docs/pruebas/03-abonos-distancia.md) y [configuración](../docs/03-abonos-distancia.md).
 
 ## Decisiones de implementación · 22/10/2026
 

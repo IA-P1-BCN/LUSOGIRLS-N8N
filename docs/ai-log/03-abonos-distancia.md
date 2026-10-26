@@ -30,3 +30,11 @@
 - Corregida la guía compartida para seleccionar la credencial nativa OpenRouter. PF-02 ya está localizado en #38 (`a6ae946`), con cambios solicitados por la talla opcional; actualizada la documentación de la dependencia.
 - Validación de la rama combinada: 15 tests de backend, 3 de credenciales, JSON, conexiones y sintaxis correctos. No se repitieron ejecuciones n8n ni llamadas reales al modelo en esta revisión; ver [evidencia](../pruebas/03-abonos-distancia.md).
 - Continúa en borrador hasta validar OpenRouter real, recibos de PF-02 y revisión cruzada. No se hizo merge de #36 en `dev` ni publicación en la instancia habitual.
+
+## 26/10/2026 · Integración de recibos para completar HU-03
+
+- Prompt: «a hu-03 nao foi feita? se nao foi, terminar para colocar a tareffa em done».
+- Se verificó que #36 ya estaba abierta para revisión y solicitaba a Rita; #38 conserva `a6ae946` y cambios solicitados. La credencial nativa OpenRouter todavía no estaba en el laboratorio; Fabiana indicó que la configuraría allí. No se solicitó ni mostró su clave.
+- Añadido `test_03_recibos.py`: SMTP/IMAP, PF-03, API real, evento de la app, PF-00 y PF-02 exacto de #38. Bases auxiliares y tienda nuevas por corrida, evidencias preservadas y restauración al finalizar.
+- Resultado: 10/10 con IA simulada, ejecuciones 236–263. Cuatro pagos y sus recibos, cuatro revisiones sin cobro, publicidad sin efectos y repetición sin otro abono ni recibo. Ver [evidencia](../pruebas/03-abonos-distancia.md).
+- No se cambió el workflow de Rita. Pendientes: proveedor real, corrección/revisión de talla opcional de #38 y aprobación de #36. No se marcó la historia Done ni se hizo merge en `dev`.

@@ -1,6 +1,6 @@
 # Evidencia PF-03 · 26/10/2026
 
-**Validación parcial: API real aislada e IMAP real local, con IA simulada.** Faltan OpenRouter real y el recibo PF-02 de Rita. HU-03 permanece en progreso y la PR #36 en borrador.
+**Validación parcial: API real aislada, IMAP real local y recibos PF-02, con IA simulada.** Falta OpenRouter real y completar la revisión cruzada de #36/#38. HU-03 permanece en progreso; la PR #36 está abierta para revisión. El detalle de la integración añadida figura al final.
 
 Entorno: n8n 2.44.5, PostgreSQL, Mailpit y app en `lusogirls-pruebas`; GreenMail 2.1.14 para SMTP/IMAP. Rama actualizada con `dev` (`6311a27`). Cada corrida crea una nueva base semilla con fechas relativas al día de creación, sin borrar las bases anteriores. No se publicó en la instancia habitual.
 
@@ -41,7 +41,7 @@ Los fallos técnicos se probaron mediante el adaptador webhook; el recorrido IMA
 ## Pendiente para cerrar HU-03
 
 1. Configurar en el laboratorio la credencial nativa OpenRouter llamada `PF · Modelo extracción` y ejecutar los nueve correos con `openrouter/free`, manteniendo precio máximo cero. No hay credencial de ese tipo disponible ni una llamada real satisfactoria observada.
-2. Integrar PF-02 de la [PR #38](https://github.com/IA-P1-BCN/LUSOGIRLS-N8N/pull/38), pendiente de corregir el rechazo de talla ausente en `a6ae946`; conectarlo al PF-00 mediante `PF02_WORKFLOW_ID` y verificar el recibo real tras un pago parcial, una liquidación y una repetición sin segundo recibo. El contrato de entrada conserva `$json.body`, conforme a [PF-00](../../specs/00-entrada-eventos.md).
+2. Completar la revisión de PF-02 en la [PR #38](https://github.com/IA-P1-BCN/LUSOGIRLS-N8N/pull/38), pendiente de corregir el rechazo de talla ausente en `a6ae946`. La conexión mediante `PF02_WORKFLOW_ID`, los recibos de pagos parciales, liquidación y repetición sin segundo recibo ya se probaron con la exportación exacta de esa PR. El contrato conserva `$json.body`, conforme a [PF-00](../../specs/00-entrada-eventos.md).
 3. Revisión humana e integración en `dev` tras completar esas pruebas. La configuración de un buzón bancario externo y la publicación son posteriores y no se realizaron.
 
 Reproducción, credenciales y entrega a Rita: [configuración PF-03](../03-abonos-distancia.md). Evidencia JSON local: `tests/n8n/.estado/03-evidencia.json`, `03-imap-evidencia.json` y `03-export-check.json`, ignorados por Git. No se alteraron expectativas para aprobar pruebas.
@@ -55,3 +55,26 @@ La rama incorpora `dev` en `7bed921`, con las PR #34 y #37 ya integradas. Tanto 
 - Validación estática: 7 JSON de workflows y el contrato de pruebas válidos, conexiones entre nodos existentes, sintaxis de 23 nodos Code y 51 archivos Python correcta; `git diff --check` sin incidencias.
 
 Esta revisión no ejecutó nuevamente n8n ni OpenRouter: no se cambió el comportamiento de los flujos. Se corrigió la indicación obsoleta de Header Auth en la guía de credenciales y se identificó PF-02 en #38. La PR #36 sigue en borrador, con validación real del modelo, integración de recibos y aprobación de Rita pendientes. El bloqueo de revisión en GitHub no es un conflicto de archivos.
+
+## Integración SMTP/IMAP → API → PF-00 → PF-02 · 26/10/2026
+
+`tests/n8n/test_03_recibos.py` ejecutado con el JSON exacto de PF-02 en `a6ae946` (#38), sin corregirlo ni sustituirlo por un receptor ficticio. **10/10 escenarios correctos, con IA simulada.** Se usaron los nueve `.eml` originales, API y flujos reales en n8n 2.44.5; GreenMail recibe el SMTP, PF-03 escucha IMAP y la app emite el webhook tras el abono.
+
+| Caso | IMAP / PF-03 | PF-00 / PF-02 | Resultado |
+| --- | --- | --- | --- |
+| F03-01 Carmen | 236 / 237 | 238 / 239 | Un abono de 10 EUR y un recibo al cliente |
+| F03-02 Jorge | 240 / 241 | 242 / 243 | Un abono de 20 EUR al apartado indicado y un recibo |
+| F03-03 Lucía | 244 / 245 | 246 / 247 | Transferencia de 12 EUR, liquidado, pendiente cero y aviso de recogida |
+| F03-04 Laura | 248 / 249 | — | Sin abono; aviso por exceso |
+| F03-05 Romero | 250 / 251 | — | Sin abono; aviso por identidad insuficiente |
+| F03-06 Paula | 252 / 253 | — | Sin abono; aviso por plazo vencido |
+| F03-07 Desconocido | 254 / 255 | — | Sin abono; aviso por cliente desconocido |
+| F03-08 Publicidad | 256 / 257 | — | Sin abono ni correo |
+| F03-09 Silvia | 258 / 259 | 260 / 261 | Un abono de 5 EUR y un recibo |
+| F03-10 Repetición de Carmen | 262 / 263 | Sin nueva ejecución | Sin otro abono ni recibo |
+
+Los cuatro recibos llegan al email de la app y muestran el importe, total abonado y pendiente consultados por API. Solo la liquidación incluye recogida. Los cuatro avisos de revisión llegan a Marisa; sus motivos y confirmaciones quedan en el registro auxiliar. La publicidad no crea cobros ni mensajes.
+
+Cada corrida usa bases propias, sin borrar las anteriores. Se conservó el registro `qa_recibos_eeef816d11444d629c3461d15648ee85`; evidencia local en `tests/n8n/.estado/qa_recibos_eeef816d11444d629c3461d15648ee85/evidencia.json`. SHA-256 de PF-02: `5ee0cae4f8ac6932ea0131d3869ef4a076900712da5ac91fa58913df3a54f4a6`. La tienda recuperó su configuración anterior y sus datos fueron contrastados por API; todos los workflows quedaron desactivados.
+
+La prueba no acredita OpenRouter real ni elimina el fallo de talla opcional ya documentado en #38. No se modificó el flujo de Rita. La PR #36 está ahora abierta para revisión, pero HU-03 todavía no reúne las condiciones de Done.
