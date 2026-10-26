@@ -171,6 +171,34 @@ try:
     record('Dato financiero ausente', run, incidencias=2,
            ejecuciones_pf08=[h['id'] for h in handlers])
 
+    # Talla opcional en la app (talla: str | None): sin talla, el mensaje dice "no indicada".
+    payload = json.loads(json.dumps(cases['F01-01']['input']['payload']))
+    payload['datos'].update(id=9013, talla=None)
+    before = message_count()
+    run = invoke(router, 'tienda', payload)
+    assert run['status'] == 'success', {'ejecucion': run['id'], 'estado': run['status']}
+    assert message_count() == before + 1
+    last = messages()[0]
+    assert recipients(last) == [payload['datos']['email']]
+    text = mail(last)['Text']
+    assert 'Talla: no indicada' in text and 'Precio: 89,90 €' in text, text
+    assert estado('apartado.creado:9013') == 'confirmado'
+    record('Sin talla, con email', run, correos_cliente=1, talla='no indicada')
+
+    payload = json.loads(json.dumps(cases['F01-02']['input']['payload']))
+    payload['datos'].update(id=9014, talla='')
+    before = message_count()
+    run = invoke(router, 'tienda', payload)
+    assert run['status'] == 'success', {'ejecucion': run['id'], 'estado': run['status']}
+    assert message_count() == before + 1
+    last = messages()[0]
+    assert recipients(last) == [marisa]
+    text = mail(last)['Text']
+    assert 'Talla: no indicada' in text and 'email_ausente' in text, text
+    assert estado('apartado.creado:9014:tienda') == 'confirmado'
+    assert sql("SELECT count(*) FROM pf_registro WHERE clave='apartado.creado:9014'") == '0'
+    record('Sin talla, sin email', run, correos_cliente=0, correos_marisa=1, talla='no indicada')
+
     assert business_snapshot() == business_before, 'Las pruebas alteraron la tienda'
     (STATE / '01-evidencia.json').write_text(json.dumps(evidence, ensure_ascii=False, indent=2))
 finally:

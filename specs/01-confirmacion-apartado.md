@@ -10,7 +10,7 @@ Subworkflow `workflows/01-confirmacion-apartado.json`, llamado por PF-00 con Exe
 
 Correo por SMTP local autorizado (Mailpit). Remitente y destino de la tienda se leen en `pf_config` (`CORREO_REMITENTE`, `CORREO_MARISA`). Reserva atómica en `pf_registro` antes del SMTP y estado `confirmado` después, como PF-04 y PF-08.
 
-Las cifras y la fecha límite se muestran tal como llegan, solo con formato de presentación (dos decimales con coma, fecha dd/mm/aaaa). No se calcula ningún importe ni interviene un modelo de IA. El correo se acepta con una comprobación básica de formato: vacío o `null` genera aviso a la tienda con motivo `email_ausente`; un formato no válido, con motivo `email_invalido`.
+Las cifras y la fecha límite se muestran tal como llegan, solo con formato de presentación (dos decimales con coma, fecha dd/mm/aaaa). No se calcula ningún importe ni interviene un modelo de IA. La talla es opcional en la app (`talla: str | None`): si llega vacía o `null`, el mensaje indica «Talla: no indicada» y no se trata como error. El correo se acepta con una comprobación básica de formato: vacío o `null` genera aviso a la tienda con motivo `email_ausente`; un formato no válido, con motivo `email_invalido`.
 
 ## Disparador y entradas
 
