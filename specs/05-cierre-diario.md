@@ -4,6 +4,12 @@
 
 Propuesta. [HU-04 / #5](https://github.com/IA-P1-BCN/LUSOGIRLS-N8N/issues/5). Autora: Fabiana; revisora: Rita. Entidades: Venta, Abono, CierreDiario.
 
+## Decisiones de implementación · 22/10/2026
+
+Correo SMTP local autorizado por Fabiana; PostgreSQL auxiliar y credenciales compartidas con PF-08. Horario de demostración: 00:05 Europe/Madrid, día anterior completo. Se incluyen transferencias como columna adicional cuando existan, por la ampliación de HU-03 autorizada por Fabiana. La activación y el destino real siguen pendientes de revisión.
+
+Cada consulta conserva el cuerpo completo incluso si es `[]`; se valida estado, lista, fechas, IDs únicos, medios y `X-Total-Count` de ventas. Tres intentos máximo por GET. El documento se guarda antes del SMTP, con estado reservado; solo un envío confirmado pasa a confirmado. Un estado reservado tras un fallo necesita conciliación humana y puede recuperarse sobre la misma fila, nunca se reenvía automáticamente un resultado incierto.
+
 ## Disparador y entradas
 
 Schedule Trigger. Propuesta a confirmar: 00:05 en `Europe/Madrid`, para cerrar el día anterior completo. Fijar `fecha_cierre` al iniciar. Consultar `GET /api/ventas?desde=D&hasta=D` y `GET /api/abonos?desde=D&hasta=D`. Sin `pagina` la API devuelve todos; si se pagina, recorrer hasta completar `X-Total-Count`.

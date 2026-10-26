@@ -4,6 +4,12 @@
 
 Propuesta. [HU-05 / #6](https://github.com/IA-P1-BCN/LUSOGIRLS-N8N/issues/6). Autora: Fabiana; revisora: Rita. Entidad auxiliar: Incidencia, con identificadores técnicos mínimos.
 
+## Decisiones de implementación · 22/10/2026
+
+Fabiana autoriza correo local de pruebas. Se utiliza SMTP con Mailpit (sin retransmisión externa) y PostgreSQL como registro auxiliar, separado de SQLite. Una clave primaria y `INSERT ON CONFLICT DO NOTHING RETURNING` reservan cada aviso de forma atómica. La reserva no se libera automáticamente: si el envío o su confirmación fallan, se concilia antes de volver a enviar. La ausencia de ID se agrupa por flujo y paso en ventanas de cinco minutos.
+
+Se ejecuta el fallo automático en otra instancia n8n, proyecto Docker `lusogirls-pruebas`, con datos y puertos propios. La activación temporal se limita al emisor ficticio de pruebas. PF-08 no tiene otro Error Workflow asociado. El texto crudo del error nunca forma parte del aviso.
+
 ## Disparador y entradas
 
 Error Trigger, seleccionado como Error Workflow en la configuración de los flujos de negocio. Entrada del error: `workflow.id/name` y, cuando existan, `execution.id/url/lastNodeExecuted/error.message`. Los errores de trigger pueden aportar otra estructura; validar presencia y usar «no disponible» cuando falte un campo.

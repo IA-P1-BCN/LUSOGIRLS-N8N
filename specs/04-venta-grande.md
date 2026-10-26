@@ -4,6 +4,12 @@
 
 Propuesta de nivel Medio. [HU-09 / #10](https://github.com/IA-P1-BCN/LUSOGIRLS-N8N/issues/10). Autora: Fabiana; revisora: Rita. Entidad: Venta.
 
+## Decisiones de implementación · 22/10/2026
+
+SMTP local autorizado por Fabiana, reserva atómica en el registro PostgreSQL de PF-08. `UMBRAL_VENTA_GRANDE` se lee en `pf_config` en cada ejecución, sin depender de variables de pago de n8n. El JSON es un subworkflow: recibe el evento de PF-00 y no crea otro Webhook `tienda`.
+
+Se incluye el adaptador PF-00 compartido como dependencia mínima del disparador. Sus destinos se configuran por ID real en `pf_config`; los flujos de Rita se conectan al integrarse, sin implementarlos ni editarlos aquí. Si falta un destino, la ejecución falla visiblemente. Las respuestas HTTP 200 de recepción no garantizan que el subworkflow haya terminado.
+
 ## Disparador y entradas
 
 Evento `venta.registrada` desde PF-00: `datos.id`, `fecha`, `concepto`, `importe`, `forma_pago`. Leer `UMBRAL_VENTA_GRANDE` desde configuración externa acordada; no asumir que la edición de n8n incluye variables de pago.
