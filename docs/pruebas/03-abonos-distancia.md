@@ -41,7 +41,17 @@ Los fallos técnicos se probaron mediante el adaptador webhook; el recorrido IMA
 ## Pendiente para cerrar HU-03
 
 1. Configurar en el laboratorio la credencial nativa OpenRouter llamada `PF · Modelo extracción` y ejecutar los nueve correos con `openrouter/free`, manteniendo precio máximo cero. No hay credencial de ese tipo disponible ni una llamada real satisfactoria observada.
-2. Recibir de Rita el workflow PF-02 y su PR/branch; conectarlo al PF-00 mediante `PF02_WORKFLOW_ID` y verificar el recibo real tras un pago parcial y una liquidación. El contrato de entrada conserva `$json.body`, conforme a [PF-00](../../specs/00-entrada-eventos.md).
+2. Integrar PF-02 de la [PR #38](https://github.com/IA-P1-BCN/LUSOGIRLS-N8N/pull/38), pendiente de corregir el rechazo de talla ausente en `a6ae946`; conectarlo al PF-00 mediante `PF02_WORKFLOW_ID` y verificar el recibo real tras un pago parcial, una liquidación y una repetición sin segundo recibo. El contrato de entrada conserva `$json.body`, conforme a [PF-00](../../specs/00-entrada-eventos.md).
 3. Revisión humana e integración en `dev` tras completar esas pruebas. La configuración de un buzón bancario externo y la publicación son posteriores y no se realizaron.
 
 Reproducción, credenciales y entrega a Rita: [configuración PF-03](../03-abonos-distancia.md). Evidencia JSON local: `tests/n8n/.estado/03-evidencia.json`, `03-imap-evidencia.json` y `03-export-check.json`, ignorados por Git. No se alteraron expectativas para aprobar pruebas.
+
+## Revisión de la actualización con dev · 26/10/2026
+
+La rama incorpora `dev` en `7bed921`, con las PR #34 y #37 ya integradas. Tanto `git merge-tree --write-tree` como el merge local completaron sin conflictos. El JSON de PF-03, la API, la interfaz y el cliente de laboratorio permanecen iguales a `772c967`; los flujos PF-01, PF-07 y PF-08 coinciden con los de ese `dev`.
+
+- Backend sobre la rama combinada: **15 tests correctos**, con base temporal y webhook deshabilitado (`uv run --with-requirements requirements.txt python -m pytest -q`, desde `backend/`).
+- Credenciales: **3 tests correctos** (`python3 tests/n8n/test_credenciales.py`), con configuración ficticia local y llamadas simuladas por los tests.
+- Validación estática: 7 JSON de workflows y el contrato de pruebas válidos, conexiones entre nodos existentes, sintaxis de 23 nodos Code y 51 archivos Python correcta; `git diff --check` sin incidencias.
+
+Esta revisión no ejecutó nuevamente n8n ni OpenRouter: no se cambió el comportamiento de los flujos. Se corrigió la indicación obsoleta de Header Auth en la guía de credenciales y se identificó PF-02 en #38. La PR #36 sigue en borrador, con validación real del modelo, integración de recibos y aprobación de Rita pendientes. El bloqueo de revisión en GitHub no es un conflicto de archivos.

@@ -48,7 +48,7 @@ Para probar desde la app con un workflow sin publicar, cambiar **localmente** `N
 | API de la tienda | `PF · API tienda` | Header Auth, nombre `X-API-Key`, valor del `.env` local |
 | Enviar avisos | `PF · Notificaciones` | Cuenta de correo o bot elegido y destino de prueba |
 | Leer correo bancario | `PF · Buzón de pruebas` | Acceso Gmail/IMAP a la cuenta de pruebas |
-| Extraer datos con IA | `PF · Modelo extracción` | OpenRouter gratuito, Header Auth `Authorization`; ver [configuración PF-03](../docs/03-abonos-distancia.md) |
+| Extraer datos con IA | `PF · Modelo extracción` | Credencial nativa OpenRouter (`openRouterApi`), clave en API Key; ver [configuración PF-03](../docs/03-abonos-distancia.md) |
 | Cierres/deduplicación | `PF · Registro auxiliar` | Almacenamiento seleccionado, permisos y claves únicas |
 
 Son nombres comunes para que cada integrante cree y seleccione sus credenciales locales; no implican que ya estén configuradas en ambas instancias. No compartir claves personales ni el `.env` por GitHub. `UMBRAL_VENTA_GRANDE`, horario, destino de avisos y política de retención se documentan al elegirlos. No depender de una funcionalidad de pago de n8n sin verificar que está disponible en la edición instalada.

@@ -21,3 +21,12 @@
 - Nueva validación: SMTP → IMAP → subflujo PF-03 con nueve correos y repetición. Primera corrida 141–160; segunda 161–180 con filtro por cabecera de test y mensajes anteriores preservados. Todos pasaron con IA simulada. Los fallos de extracción y timeout se verificaron por webhook en 124–140; backend: 15 tests correctos.
 - Evidencia y límites en [pruebas PF-03](../pruebas/03-abonos-distancia.md). El JSON original se recuperó de n8n, inactivo y sin referencias de instancia.
 - Pendientes separados: Fabiana configura y valida OpenRouter real; Rita entrega PF-02 para comprobar el recibo a través de PF-00. PR en borrador, HU-03 en progreso; sin merge ni publicación en la instancia habitual. La explicación para Rita se redactó para Fabiana, no se envió un mensaje externo.
+
+## 26/10/2026 · Revisión del bloqueo y actualización de #36
+
+- Prompt de Fabiana: «agora revisa a 36 minha proque ta dando conflito».
+- Comprobación: GitHub indicaba `MERGEABLE` y `BLOCKED`, PR en borrador y revisión requerida. La protección de `dev` exige una aprobación. La integración local con `dev` (`7bed921`, PR #34 y #37) fue limpia, sin conflictos de archivos.
+- Incorporado ese `dev` mediante merge, sin reescribir historial. PF-03, API e interfaz conservan su implementación; PF-01, PF-07 y PF-08 conservan las versiones integradas en `dev`.
+- Corregida la guía compartida para seleccionar la credencial nativa OpenRouter. PF-02 ya está localizado en #38 (`a6ae946`), con cambios solicitados por la talla opcional; actualizada la documentación de la dependencia.
+- Validación de la rama combinada: 15 tests de backend, 3 de credenciales, JSON, conexiones y sintaxis correctos. No se repitieron ejecuciones n8n ni llamadas reales al modelo en esta revisión; ver [evidencia](../pruebas/03-abonos-distancia.md).
+- Continúa en borrador hasta validar OpenRouter real, recibos de PF-02 y revisión cruzada. No se hizo merge de #36 en `dev` ni publicación en la instancia habitual.

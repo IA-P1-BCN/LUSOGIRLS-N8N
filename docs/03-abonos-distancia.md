@@ -63,9 +63,9 @@ GreenMail recibe SMTP en `127.0.0.1:13025`; IMAP solo es accesible en la red Doc
 
 Referencia: [servidor de pruebas GreenMail](https://greenmail-mail-test.github.io/greenmail/). Es un servidor local de pruebas, sin reenvío a destinatarios externos. No acredita la conexión al proveedor bancario real. Para probar ambos servicios reales de laboratorio, una vez disponible la credencial del modelo, combinar `PF_TEST_IMAP=1 PF_TEST_OPENROUTER=1`.
 
-## Qué falta de Rita para PF-02
+## Integración pendiente con PF-02 de Rita
 
-Se necesita la PR/branch o exportación de **PF-02 · Recibo de abono**, correspondiente a [HU-02 / #3](https://github.com/IA-P1-BCN/LUSOGIRLS-N8N/issues/3), junto con sus instrucciones de credenciales. El 26/10 no estaba en `dev` ni en las ramas publicadas consultadas. No se requiere su clave personal ni su buzón.
+**PF-02 · Recibo de abono**, correspondiente a [HU-02 / #3](https://github.com/IA-P1-BCN/LUSOGIRLS-N8N/issues/3), está disponible en la [PR #38](https://github.com/IA-P1-BCN/LUSOGIRLS-N8N/pull/38). En la revisión del 26/10 su commit `a6ae946` sigue con cambios solicitados por rechazar una talla ausente, aunque la API permite ese campo vacío. La corrección de PF-01 integrada mediante #37 no corrige por sí sola PF-02. Falta resolver esa revisión y comprobar la integración; no se requiere la clave personal ni el buzón de Rita.
 
 - Entrada: Execute Workflow Trigger en passthrough, leyendo `$json.body.evento` y `$json.body.datos`; PF-00 conserva el envoltorio `body` y añade `workflow_id`.
 - Evento: `abono.registrado`; `datos` es el apartado actualizado más `importe`. `datos.id` identifica el apartado, no el abono.
