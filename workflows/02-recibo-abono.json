@@ -1,0 +1,214 @@
+{
+  "name": "PF-02 · Recibo de abono",
+  "nodes": [
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT COALESCE(jsonb_object_agg(clave,valor),'{}'::jsonb) AS config, $1::jsonb AS entrada FROM pf_config",
+        "options": {
+          "queryReplacement": "={{ [JSON.stringify($json)] }}"
+        }
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.7,
+      "position": [
+        224,
+        0
+      ],
+      "id": "b1cddf39-568f-4826-b0ed-bc6cbdca6ff4",
+      "name": "Leer configuración",
+      "credentials": {
+        "postgres": {
+          "name": "PF · Registro auxiliar"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO pf_registro(clave,tipo,estado,ejecucion,documento) VALUES($1,$2,'reservado',$3,$4::jsonb) ON CONFLICT DO NOTHING RETURNING clave,documento",
+        "options": {
+          "queryReplacement": "={{ [$json.clave, $json.tipo, $execution.id, JSON.stringify($json.documento)] }}"
+        }
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.7,
+      "position": [
+        672,
+        0
+      ],
+      "id": "80e34b0f-f3fd-4c5e-8736-004e78398e23",
+      "name": "Reservar operación",
+      "credentials": {
+        "postgres": {
+          "name": "PF · Registro auxiliar"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "   // Solo deja pasar si la reserva es nueva (trae clave y documento)\n   return $input.all().filter(i => typeof i.json.clave === 'string' && i.json.documento);"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        896,
+        0
+      ],
+      "id": "7f62ebd7-cef5-4045-a9fa-cd2a7a803bcd",
+      "name": "Comprobar reserva"
+    },
+    {
+      "parameters": {
+        "fromEmail": "={{ $json.documento.remitente }}",
+        "toEmail": "={{ $json.documento.destinatario }}",
+        "subject": "={{ $json.documento.asunto }}",
+        "emailFormat": "text",
+        "text": "={{ $json.documento.texto }}",
+        "options": {
+          "appendAttribution": false
+        }
+      },
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2.1,
+      "position": [
+        1024,
+        0
+      ],
+      "id": "fea46f60-6ba1-4d41-bb5f-650c41bc664d",
+      "name": "Enviar aviso",
+      "webhookId": "b24a17df-bd18-48b1-ae14-7c1ea2fd3cd8",
+      "credentials": {
+        "smtp": {
+          "name": "PF · Notificaciones"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE pf_registro SET estado='confirmado', actualizado=now() WHERE clave=$1 AND ejecucion=$2 AND estado='reservado' RETURNING clave,estado",
+        "options": {
+          "queryReplacement": "={{ [$(\"Reservar operación\").item.json.clave, $execution.id] }}"
+        }
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.7,
+      "position": [
+        1248,
+        0
+      ],
+      "id": "aa15de64-e906-455e-a865-9a465d7ab7e8",
+      "name": "Confirmar envío",
+      "credentials": {
+        "postgres": {
+          "name": "PF · Registro auxiliar"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "inputSource": "passthrough"
+      },
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1.3,
+      "position": [
+        0,
+        0
+      ],
+      "id": "ba1cc87c-766e-4dc0-97a7-ae391183382a",
+      "name": "Recibir abono de PF-00"
+    },
+    {
+      "parameters": {
+        "jsCode": "// ---------- Bloque 1: leer datos ----------\nconst { config: c, entrada } = $input.first().json;\nconst body = entrada.body || {};\nconst evento = body.evento;\nconst a = body.datos;\n\n// ---------- Bloque 2: comprobar ----------\nconst esTexto = v => typeof v === 'string' && v.trim() !== '';\nconst esImporte = v => typeof v === 'number' && Number.isFinite(v) && v >= 0;\nconst esFecha = v => typeof v === 'string' && /^\\d{4}-\\d{2}-\\d{2}$/.test(v);\n\n// Céntimos sin multiplicar decimales (mismo método que PF-04)\nconst cent = v => {\n  if (!/^(0|[1-9]\\d*)(\\.\\d{1,2})?$/.test(String(v))) throw new Error('Importe inválido');\n  const [e, d = ''] = String(v).split('.');\n  const n = Number(e) * 100 + Number(d.padEnd(2, '0'));\n  if (!Number.isSafeInteger(n)) throw new Error('Importe fuera de rango');\n  return n;\n};\n\nif (evento !== 'abono.registrado') throw new Error('Evento inesperado en PF-02');\nif (!a || typeof a !== 'object' || Array.isArray(a)) throw new Error('Apartado ausente');\nif (!Number.isInteger(a.id) || a.id < 1) throw new Error('Apartado sin id válido');\nif (!esTexto(a.cliente) || !esTexto(a.producto) || !esTexto(String(a.talla ?? ''))) {\n  throw new Error('Faltan datos del cliente o del producto');\n}\nif (!esImporte(a.importe) || a.importe <= 0) throw new Error('Falta el importe del abono');\nif (!esImporte(a.precio) || a.precio <= 0 || !esImporte(a.abonado) || !esImporte(a.pendiente)) {\n  throw new Error('Faltan datos financieros del apartado');\n}\nif (!['activo', 'liquidado'].includes(a.estado)) throw new Error('Estado de apartado inesperado');\nif (!esTexto(c.CORREO_MARISA) || !esTexto(c.CORREO_REMITENTE)) {\n  throw new Error('Falta configuración de correo');\n}\n\nconst importeC = cent(a.importe);\nconst abonadoC = cent(a.abonado);\nconst pendienteC = cent(a.pendiente);\n\n// Coherencia: liquidado solo con pendiente cero (no se corrige el estado)\nconst incoherente = (a.estado === 'liquidado') !== (pendienteC === 0);\n\n// ---------- Bloque 3: decidir destino ----------\nconst email = typeof a.email === 'string' ? a.email.trim() : '';\nconst emailValido = /^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(email);\nconst base = `abono.registrado:${a.id}:${abonadoC}:${importeC}`;\n\nlet destino, destinatario, clave, motivo;\nif (incoherente) {\n  destino = 'tienda';\n  destinatario = c.CORREO_MARISA;\n  clave = `${base}:tienda`;\n  motivo = 'saldo_contradictorio';\n} else if (emailValido) {\n  destino = 'cliente';\n  destinatario = email;\n  clave = base;\n  motivo = null;\n} else {\n  destino = 'tienda';\n  destinatario = c.CORREO_MARISA;\n  clave = `${base}:tienda`;\n  motivo = email === '' ? 'email_ausente' : 'email_invalido';\n}\n\n// ---------- Bloque 4: escribir el mensaje ----------\nconst euros = n => n.toFixed(2).replace('.', ',') + ' €';\n\nconst resumen = [\n  `Modelo: ${a.producto}`,\n  `Talla: ${a.talla}`,\n  `Importe de este abono: ${euros(a.importe)}`,\n  `Total abonado: ${euros(a.abonado)}`,\n  `Pendiente: ${euros(a.pendiente)}`\n].join('\\n');\n\nconst recogida = (a.estado === 'liquidado' && !incoherente)\n  ? '\\nEl apartado está pagado por completo: ya puedes pasar a recogerlo.\\n'\n  : '';\n\nlet asunto, texto;\nif (destino === 'cliente') {\n  asunto = `Paso Firme · Recibo de tu abono al apartado n.º ${a.id}`;\n  texto = `Hola, ${a.cliente}:\\n\\n` +\n    `Hemos recibido tu abono.\\n\\n` +\n    `${resumen}\\n${recogida}\\n` +\n    `Gracias por tu confianza.\\nPaso Firme`;\n} else {\n  asunto = `Paso Firme · Abono del apartado n.º ${a.id} sin recibo al cliente`;\n  texto = `Se ha registrado un abono en el apartado n.º ${a.id} de ${a.cliente}, ` +\n    `pero no se ha enviado recibo al cliente (motivo: ${motivo}).\\n\\n` +\n    `${resumen}\\n\\n` +\n    `Teléfono registrado: ${a.telefono || 'no disponible'}.`;\n}\n\n// ---------- Bloque 5: devolver el documento ----------\nreturn [{\n  json: {\n    clave,\n    tipo: destino === 'cliente' ? 'recibo_abono' : 'aviso_abono_sin_recibo',\n    documento: {\n      apartado_id: a.id,\n      destino,\n      motivo,\n      destinatario,\n      remitente: c.CORREO_REMITENTE,\n      asunto,\n      texto\n    }\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        448,
+        0
+      ],
+      "id": "e5db8867-5a69-4b84-ad3d-3d05ec30c4ff",
+      "name": "Validar abono"
+    }
+  ],
+  "connections": {
+    "Leer configuración": {
+      "main": [
+        [
+          {
+            "node": "Validar abono",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Reservar operación": {
+      "main": [
+        [
+          {
+            "node": "Comprobar reserva",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Comprobar reserva": {
+      "main": [
+        [
+          {
+            "node": "Enviar aviso",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Enviar aviso": {
+      "main": [
+        [
+          {
+            "node": "Confirmar envío",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Recibir abono de PF-00": {
+      "main": [
+        [
+          {
+            "node": "Leer configuración",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validar abono": {
+      "main": [
+        [
+          {
+            "node": "Reservar operación",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "timeSavedMode": "fixed",
+    "callerPolicy": "workflowsFromSameOwner",
+    "availableInMCP": false,
+    "timezone": "Europe/Madrid"
+  },
+  "active": false,
+  "pinData": {}
+}
