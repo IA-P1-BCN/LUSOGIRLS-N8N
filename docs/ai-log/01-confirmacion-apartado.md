@@ -8,4 +8,5 @@
 - Errores encontrados y corregidos: espacios delante de `{{` en Query Parameters al pegar (corregidos antes de exportar); zona horaria heredada por defecto de la instancia, fijada explícitamente a `Europe/Madrid`; PF-00 y PF-08 importados por error dentro de PF-01 (Import from File añade nodos al workflow abierto), deshecho con Cmd+Z; `N8N_WEBHOOK_URL` duplicado en el `.env` local tras una comprobación mal filtrada, dejado en una sola línea.
 - Exportación: se retiraron IDs de credenciales, id, versionId, instanceId y datos fijados; nodos, código y conexiones sin cambios respecto a lo probado.
 - Evidencia: [pruebas y ejecuciones](../pruebas/01-confirmacion-apartado.md), con la prueba integrada app → PF-00 (28) → PF-01 (29).
-- Estado: pendiente test de laboratorio, push y PR hacia `dev`. Sin publicaciones en n8n ni merge.
+- Test de laboratorio (26/10): Claude escribió `tests/n8n/test_01.py` siguiendo `test_04.py`; Rita lo ejecutó y pasaron F01-01, F01-03, F01-02, liquidado y dato financiero ausente (ejecuciones 47 a 60). A diferencia de `test_04.py`, no reexporta los JSON al repo, para que el archivo probado sea el mismo que se sube.
+- Estado: PR hacia `dev` pendiente de revisión de Fabiana. Sin publicaciones en la instancia habitual ni merge.

@@ -34,8 +34,8 @@ Campos financieros ausentes: incidencia, sin inventar un saldo. Error del provee
 
 [F01-01, F01-02 y F01-03](../data/pruebas/contratos.json): confirmación completa, correo ausente y evento repetido.
 
-- [ ] Mensaje en menos de un minuto desde la creación en una prueba integrada.
-- [ ] Modelo/talla y cifras coinciden con el payload, sin cálculos de IA.
-- [ ] Falta de correo: aviso a la tienda y cero envíos al cliente.
-- [ ] Evento repetido con envío confirmado: cero mensajes adicionales.
+- [x] Mensaje en menos de un minuto desde la creación en una prueba integrada.
+- [x] Modelo/talla y cifras coinciden con el payload, sin cálculos de IA.
+- [x] Falta de correo: aviso a la tienda y cero envíos al cliente.
+- [x] Evento repetido con envío confirmado: cero mensajes adicionales.
 - [ ] JSON importado, evidencia con destino de prueba y revisión en la PR hacia `dev`.

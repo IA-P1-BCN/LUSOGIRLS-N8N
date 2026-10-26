@@ -30,7 +30,20 @@ Datos fijados en el disparador con el contrato de PF-00 `{body: {evento, datos},
 
 En ningún caso PF-01 escribe en la tienda (`business_writes` 0): solo lee `pf_config` y escribe su reserva en `pf_registro`.
 
-## Pendiente antes de pedir la revisión
+## Laboratorio aislado · 26/10/2026
 
-- Test automático en el laboratorio de #32 (`tests/n8n/test_01.py`) con F01-01 a F01-03, contenido del correo y estado `confirmado`.
-- Seleccionar PF-08 como Error Workflow de PF-01 cuando se autorice publicar PF-08 en la instancia (n8n 2.x solo permite elegir Error Workflows publicados).
+`python3 tests/n8n/lab.py 01` sobre el laboratorio de #32 (proyecto `lusogirls-pruebas`). Instala los JSON del repo (PF-08, PF-01 y PF-00), configura `PF01_WORKFLOW_ID` con el ID del laboratorio y envía los eventos al Webhook publicado de PF-00, como la app. PF-08 es Error Workflow de PF-00 y PF-01. El test no reescribe los JSON del repo.
+
+| Caso | Ejecución del router | Resultado |
+| --- | --- | --- |
+| F01-01 | 47 → PF-01 48 | Un correo a `cliente@example.com` con «Modelo: Botin demo», «Talla: 38», «Precio: 89,90 €», «Abonado: 10,00 €», «Pendiente: 79,90 €» y «Fecha límite: 19/01/2027»; `apartado.creado:9001` `confirmado`; cero avisos a Marisa |
+| F01-03 | 49 | Repetición con la confirmación registrada: cero correos nuevos |
+| F01-02 | 51; repetición 53 | `email: null`: un correo a `CORREO_MARISA` con `email_ausente`; `apartado.creado:9001:tienda` `confirmado`; cero correos al cliente; la repetición no duplica. Avisa aunque 9001 ya estuviera confirmado al cliente: las claves separadas funcionan |
+| Apartado liquidado | 55 | El texto incluye que puede pasar a recogerlo y «Pendiente: 0,00 €» |
+| Dato financiero ausente | 57 | `pendiente: null`: ejecución fallida, dos incidencias PF-08 (59 y 60, una de PF-01 con «Validar apartado» y otra de PF-00); sin reserva ni correo al cliente |
+
+Resultado: los cinco casos pasaron. Comparación de ventas, abonos, apartados y vales antes y después: sin cambios en la tienda.
+
+## Pendiente fuera de esta PR
+
+- Seleccionar PF-08 como Error Workflow de PF-01 en la instancia habitual cuando se autorice publicar PF-08 (n8n 2.x solo permite elegir Error Workflows publicados). En el laboratorio ya está asociado.
