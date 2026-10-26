@@ -1,6 +1,8 @@
 # Importar, probar y exportar workflows
 
-Aquí se guardan los JSON de los flujos implementados. PF-08 dispone de exportación y [evidencia de ejecución](../docs/pruebas/08-errores.md). Ver [servicios y laboratorio](../docs/automatizaciones-locales.md) para preparar las credenciales compartidas. Cada nueva PR añade su propio flujo y evidencia; el Webhook inicial de Fabiana se conserva.
+Aquí se guardan los JSON de los flujos implementados. PF-08 dispone de exportación y [evidencia de ejecución](../docs/pruebas/08-errores.md). Ver [servicios y laboratorio](../docs/automatizaciones-locales.md) para preparar las credenciales compartidas. Cada nueva PR añade su propio flujo y evidencia.
+
+PF-00 será el único workflow publicado que reciba `POST tienda`. El Webhook inicial de Fabiana (`My workflow`) se conserva **sin publicar**; antes de poner PF-00 en servicio, comprobar que ningún otro workflow publicado use ese método y path. Sus cuatro subflujos reciben `{body: {evento, datos}, workflow_id}` y se seleccionan mediante los IDs de la propia instancia en `pf_config`: ver [spec y tabla de destinos](../specs/00-entrada-eventos.md). No publicar el router hasta integrar y probar los destinos de la pareja.
 
 ## Importar en el editor
 
