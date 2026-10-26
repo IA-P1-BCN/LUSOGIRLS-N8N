@@ -15,7 +15,7 @@
 
 Las rutas `email_fixture` son relativas a esta carpeta. Hay **nueve** `.eml`. Preparar una copia aislada de la semilla, con saldos y plazos compatibles con [las pruebas de ejemplo](../../backend/tests/test_datos_de_ejemplo.py); no resetear los volúmenes usados por la pareja. Las fechas de la semilla son relativas al día de su primera creación.
 
-F03-03 está bloqueado hasta acordar cómo representar transferencias en la API. El resultado esperado sigue siendo el abono de 12 € que liquida; no marcarlo como pasado por enviar el pago a revisión. F03-10 es una repetición deliberada con el primer pago ya confirmado.
+F03-03 exige un abono de 12 € por transferencia que liquida. La ampliación fue autorizada el 22/10 e implementada en PF-03; no marcar el caso como pasado por enviar el pago a revisión. Las pruebas con IA simulada no sustituyen la validación pendiente con OpenRouter real. F03-10 es una repetición deliberada con el primer pago ya confirmado.
 
 ## Casos adicionales exigidos por las specs
 

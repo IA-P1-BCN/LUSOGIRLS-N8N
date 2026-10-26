@@ -1,6 +1,6 @@
 # Configurar y revisar PF-03
 
-El flujo sigue en borrador. Las pruebas de negocio usan datos ficticios, API real aislada, IA simulada y correo local. No publicar hasta validar OpenRouter, el buzón y el recibo PF-02 de Rita.
+El flujo sigue en borrador. Las pruebas de negocio usan datos ficticios, API real aislada, IA simulada y entrada IMAP real local. Para cerrar la historia faltan OpenRouter real y el recibo PF-02 de Rita; la conexión al buzón bancario externo y la publicación requieren configuración posterior.
 
 ## Credenciales de cada integrante
 
@@ -8,7 +8,7 @@ Fabiana y Rita comparten el código y los JSON por GitHub. Cada una configura la
 
 | Credencial | Configuración local |
 | --- | --- |
-| `PF · Modelo extracción` | Header Auth: Name `Authorization`; Value formado por `Bearer`, un espacio y la clave completa de OpenRouter. Guardar solo en n8n. |
+| `PF · Modelo extracción` | Tipo nativo **OpenRouter** (`openRouterApi`): introducir la clave completa en **API Key**; n8n añade la cabecera Bearer. Guardar solo en n8n. No reutilizar Header Auth de la tienda. |
 | `PF · Buzón de pruebas` | IMAP: servidor, puerto y acceso de un buzón de pruebas. Usar conexión TLS conforme al proveedor. |
 | `PF · API tienda` | Header Auth `X-API-Key` con el valor del `.env` de esa instalación. |
 | `PF · Notificaciones` | SMTP local de Mailpit, como en [servicios compartidos](automatizaciones-locales.md). |
@@ -30,7 +30,7 @@ En `pf_config`, revisar `API_BASE_URL`, `MODELO_EXTRACCION=openrouter/free`, `CU
 
 Importar `workflows/03-abonos-distancia.json`, seleccionar las cinco credenciales y asociar PF-08 como Error Workflow. Mantener sin publicar. La entrada IMAP entrega cada correo al procesador del mismo workflow; el nodo Execute Workflow usa el ID de su propia instancia de forma dinámica. No editarlo con un ID del laboratorio.
 
-El mensaje necesita un Message-ID estable. Los nueve `.eml` del proyecto no contienen esa cabecera: el adaptador de pruebas asigna uno ficticio y estable por archivo. Esto no demuestra recepción IMAP real.
+El mensaje necesita un Message-ID estable. Los nueve `.eml` del proyecto no contienen esa cabecera: el adaptador asigna uno ficticio y estable por archivo y, en modo IMAP, lo transmite como una cabecera real por SMTP. La evidencia del 26/10 comprueba su recepción en el nodo IMAP y la deduplicación de una segunda entrega; no se usó un buzón personal.
 
 ## Comprobar y conciliar
 
@@ -43,8 +43,33 @@ python3 tests/n8n/lab.py tests/n8n/test_03_lote.py
 
 El test crea una base de datos semilla nueva dentro del volumen aislado para cada ejecución; no borra bases anteriores. La app vuelve a su base de laboratorio habitual al terminar. Las pruebas de timeout conservan reservas y bloqueos como evidencia. No usar los scripts contra producción.
 
-Para una prueba del proveedor real, configurar además `PF · Modelo extracción` en el n8n de laboratorio y registrar **solo su referencia** en `.estado/credentials.json`, bajo ese mismo nombre. Con esa referencia, `PF_TEST_OPENROUTER=1 python3 tests/n8n/lab.py 03` ejecuta los nueve casos y la repetición con el modelo externo. Ese resultado todavía no está disponible; el test no sustituye automáticamente un fallo del proveedor por IA simulada.
+Para una prueba del proveedor real, crear en el n8n de laboratorio una credencial de tipo **OpenRouter**, nombre exacto `PF · Modelo extracción`, con la clave en el campo API Key. `prepare_credentials()` descubre su referencia por nombre y tipo; no hay que copiar la clave ni editar `.estado/credentials.json`. Después, `PF_TEST_OPENROUTER=1 python3 tests/n8n/lab.py 03` ejecuta los nueve casos y la repetición con el modelo externo. Falta esta credencial y esa corrida permanece pendiente; el test se detiene si falta la credencial y no sustituye un fallo del proveedor por IA simulada. Una antigua credencial Header Auth con ese nombre no sirve para este JSON.
 
 Un timeout o una respuesta incierta después de `Registrar abono` deja la reserva del mensaje y el bloqueo del apartado. Repetir el correo no repite el POST. La persona revisora debe contrastar la ejecución, el correo y `GET /api/apartados/{id}`. Si no puede demostrar si el abono se creó, conservar el bloqueo y pedir conciliación; no borrar filas ni cambiar el Message-ID para forzar otro intento. El bloqueo solo coordina PF-03 y no impide que una persona modifique el apartado desde la app.
 
 Un pago aceptado emite el evento normal `abono.registrado`. PF-00 lo entregará a PF-02 cuando Rita lo integre. PF-03 no envía un segundo recibo; la prueba conjunta sigue pendiente.
+
+## Repetir la recepción IMAP local
+
+Con el laboratorio preparado y PF-08 instalado:
+
+```bash
+docker compose --env-file tests/n8n/.env.local -f tests/n8n/compose.yml -f tests/n8n/imap.compose.yml up -d
+PF_TEST_IMAP=1 python3 tests/n8n/lab.py 03
+python3 tests/n8n/test_credenciales.py
+```
+
+GreenMail recibe SMTP en `127.0.0.1:13025`; IMAP solo es accesible en la red Docker del laboratorio. El test crea la credencial local a partir del secreto ya guardado en `.env.local`, usa datos ficticios y conserva los mensajes anteriores. Cada corrida filtra su cabecera `X-PF-Test-Run`. La copia de pruebas conserva el disparador IMAP y el subflujo; solo sustituye el modelo y la configuración del buzón. El JSON exportado conserva los nombres compartidos de credenciales, sin IDs de esta instancia ni filtro de pruebas.
+
+Referencia: [servidor de pruebas GreenMail](https://greenmail-mail-test.github.io/greenmail/). Es un servidor local de pruebas, sin reenvío a destinatarios externos. No acredita la conexión al proveedor bancario real. Para probar ambos servicios reales de laboratorio, una vez disponible la credencial del modelo, combinar `PF_TEST_IMAP=1 PF_TEST_OPENROUTER=1`.
+
+## Qué falta de Rita para PF-02
+
+Se necesita la PR/branch o exportación de **PF-02 · Recibo de abono**, correspondiente a [HU-02 / #3](https://github.com/IA-P1-BCN/LUSOGIRLS-N8N/issues/3), junto con sus instrucciones de credenciales. El 26/10 no estaba en `dev` ni en las ramas publicadas consultadas. No se requiere su clave personal ni su buzón.
+
+- Entrada: Execute Workflow Trigger en passthrough, leyendo `$json.body.evento` y `$json.body.datos`; PF-00 conserva el envoltorio `body` y añade `workflow_id`.
+- Evento: `abono.registrado`; `datos` es el apartado actualizado más `importe`. `datos.id` identifica el apartado, no el abono.
+- Salida: recibo con `importe`, `abonado` y `pendiente` dados por la API; cuando `estado=liquidado`, aviso de recogida. Sin email, incidencia a la tienda conforme a su spec.
+- Conexión: configurar `PF02_WORKFLOW_ID` con el ID importado en cada instancia y verificar un pago parcial, una liquidación y la repetición sin segundo recibo.
+
+PF-03 ya registra el pago por API y depende de ese consumidor para verificar el recibo completo. La credencial de OpenRouter y su validación son una pendiente de Fabiana, independiente de la entrega de Rita. Hasta resolver ambas partes, la PR #36 permanece en borrador.

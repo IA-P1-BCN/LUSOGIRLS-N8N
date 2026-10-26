@@ -1,43 +1,47 @@
-# Evidencia PF-03 · 22/10/2026
+# Evidencia PF-03 · 26/10/2026
 
-**Validación parcial: API y reglas reales con IA simulada.** OpenRouter real, recepción IMAP y recibo PF-02 pendientes. HU-03 permanece en progreso y la PR se abre en borrador.
+**Validación parcial: API real aislada e IMAP real local, con IA simulada.** Faltan OpenRouter real y el recibo PF-02 de Rita. HU-03 permanece en progreso y la PR #36 en borrador.
 
-Entorno: n8n 2.44.5, PostgreSQL, Mailpit y app en el proyecto Docker aislado `lusogirls-pruebas`. Cada corrida crea otra base semilla, con fechas relativas al día de creación. Se importó el workflow, se ejecutó mediante adaptador de entrada y se recuperó su JSON original de n8n, inactivo y con credenciales solo por nombre. No se publicó en la instancia habitual.
+Entorno: n8n 2.44.5, PostgreSQL, Mailpit y app en `lusogirls-pruebas`; GreenMail 2.1.14 para SMTP/IMAP. Rama actualizada con `dev` (`6311a27`). Cada corrida crea una nueva base semilla con fechas relativas al día de creación, sin borrar las bases anteriores. No se publicó en la instancia habitual.
 
-## Contratos de negocio con doble de IA
+## Contratos de negocio y entrada IMAP
 
-Los nueve `.eml` originales no se modificaron. Se parsearon como UTF-8 y se asignó un Message-ID ficticio estable a cada uno. El simulador entrega una extracción predefinida; **no mide la calidad del modelo ni demuestra acceso a OpenRouter**. El resto del recorrido consulta la API real de la copia semilla, reserva en PostgreSQL, registra abonos por API y entrega los avisos en Mailpit.
+Los nueve `.eml` originales no se modifican. El adaptador genera un Message-ID estable por archivo y lo transmite como cabecera real por SMTP a GreenMail. El nodo original Email Trigger IMAP recibe el mensaje y llama al subflujo del propio PF-03. Se comprueban por separado las ejecuciones del disparador y del procesador. La IA sigue siendo un doble de respuestas predefinidas: estas pruebas no acreditan precisión ni acceso a OpenRouter.
 
-| Caso | Ejecución | Resultado observado y comprobado |
-| --- | --- | --- |
-| F03-01 Carmen | 100 | Un abono de 10 EUR al apartado 1 por Bizum; registro confirmado |
-| F03-02 Jorge | 101 | Un abono de 20 EUR al apartado 2, identificado explícitamente; confirmado |
-| F03-03 Lucía | 102 | Un abono de 12 EUR por **transferencia**, apartado 3 liquidado y pendiente cero |
-| F03-04 Laura | 103 | Cero abonos, un aviso y revisión con motivo `exceso_sobre_pendiente_del_candidato` |
-| F03-05 Romero | 104 | Cero abonos, un aviso y revisión por `identidad_insuficiente` |
-| F03-06 Paula | 105 | Cero abonos, un aviso y revisión por `fuera_de_plazo` |
-| F03-07 desconocido | 106 | Cero abonos, un aviso y revisión por `cliente_desconocido` |
-| F03-08 publicidad | 107 | Cero abonos y ningún aviso |
-| F03-09 Silvia | 108 | Un abono de 5 EUR al apartado 24 por Bizum; confirmado |
-| F03-10 repetición | 109 | El correo de Carmen no crea otro abono |
-| F03-11 IA inválida | 110; PF-08 111 | Error de extracción, cero abonos y un aviso del Error Workflow |
+| Caso | Webhook de prueba | IMAP / subflujo | Resultado comprobado |
+| --- | --- | --- | --- |
+| F03-01 | 124 | 161 / 162 | Un abono de 10 EUR al apartado 1 por Bizum; confirmado |
+| F03-02 | 125 | 163 / 164 | Un abono de 20 EUR al apartado 2 identificado en el concepto; confirmado |
+| F03-03 | 126 | 165 / 166 | Un abono de 12 EUR por transferencia al apartado 3; liquidado, pendiente cero |
+| F03-04 | 127 | 167 / 168 | Cero abonos; revisión y aviso por exceso sobre pendiente |
+| F03-05 | 128 | 169 / 170 | Cero abonos; revisión y aviso por identidad insuficiente |
+| F03-06 | 129 | 171 / 172 | Cero abonos; revisión y aviso por plazo vencido |
+| F03-07 | 130 | 173 / 174 | Cero abonos; revisión y aviso por cliente desconocido |
+| F03-08 | 131 | 175 / 176 | Publicidad ignorada, sin abonos ni avisos |
+| F03-09 | 132 | 177 / 178 | Un abono de 5 EUR al apartado 24 por Bizum; confirmado |
+| F03-10 repetición | 133 | 179 / 180 | Segunda entrega del mismo Message-ID sin otro abono |
 
-Los avisos de revisión se comprobaron también en el registro: estado `revision`, motivo esperado y `aviso_confirmado=true`. El test anterior (50–64) verificaba efectos pero no todos los motivos; la corrida actual amplía esa comprobación y corrige la distinción de cliente desconocido, conservando las expectativas del contrato.
+En los pagos se comprueban destinatario del abono, importe, medio y estado `confirmado`; en las revisiones, motivo contractual, cero cobros y `aviso_confirmado=true`. Los avisos quedan en Mailpit. La repetición SMTP conserva exactamente el Message-ID original: el disparador recibe otro mensaje, pero el registro persistente impide otro pago.
 
-## Fallos y lotes
+Primera validación IMAP: ejecuciones 141–160. La segunda corrida de la tabla usa `X-PF-Test-Run` en las reglas de búsqueda para seleccionar únicamente sus propios mensajes, con los correos anteriores todavía en el servidor. Este filtro existe solo en la copia de prueba. No se vacía el buzón ni se cambia el contrato de identidad del workflow exportado.
 
-- Ejecución **112**: el doble IA inventa 9 EUR donde el correo dice 10 EUR. El flujo rechaza la extracción, no crea abonos y PF-08 maneja el error.
-- Ejecución **114**, repetición **116**: el proxy llama a la API, que registra un abono, pero retrasa la respuesta más allá del timeout. Queda exactamente un abono nuevo y se mantiene el bloqueo auxiliar; repetir el mismo correo no hace otro POST. No se borraron reservas para ocultar el resultado incierto.
-- Ejecuciones **65, 66 y 67**: un lote con dos correos ficticios de publicidad produjo dos extracciones y dos ejecuciones del procesador, además del padre. Se conserva el Execute Workflow del propio flujo; solo se sustituyen IMAP y el proveedor externo. Comprueba el procesamiento por item, no una conexión IMAP real.
-- Backend: **15 tests pasaron**, incluidos el abono por transferencia con liquidación y una venta por transferencia. Se conservaron los tests anteriores. La ampliación no requiere migración ni cambia pagos existentes.
+## Fallos y credenciales
 
-Al terminar, los workflows de prueba se desactivaron y la app volvió a su base de laboratorio habitual. Las bases de prueba, registros y bloqueo de timeout quedan como evidencia en los volúmenes aislados.
+- F03-11: ejecución 134, aviso PF-08 135; JSON de IA inválido, cero abonos y un aviso.
+- Importe inventado: ejecución 136; 9 EUR extraídos donde el texto dice 10 EUR, rechazo sin abono.
+- Timeout después del POST: ejecución 138, repetición 140; la API registra exactamente un abono y se conserva el bloqueo auxiliar. El correo repetido no vuelve a cobrar.
+- Lote de dos correos: ejecuciones 181–183; dos extracciones y dos procesamientos, además del padre, con el adaptador de lote.
+- Backend: 15 tests pasaron el 26/10, incluidas transferencia, liquidación y rechazo de exceso; base temporal propia.
+- Tres tests de credenciales pasaron: el modelo no recibe la credencial de la tienda, las referencias se mantienen separadas y la exportación retira IDs conservando los nombres compartidos.
+
+Se reprodujo un defecto de importación en n8n: cuando la credencial del modelo no existe y se declara como Header Auth, n8n puede asignar la credencial Header Auth de la tienda. PF-03 usa ahora la credencial nativa **OpenRouter** (`openRouterApi`), distinta de la API de la tienda. Se verificó la importación/exportación real de un workflow inactivo con esa referencia y sin IDs de credenciales. Ninguna prueba envió la clave de la tienda a OpenRouter: las ejecuciones del modelo utilizaron el simulador local.
+
+Los fallos técnicos se probaron mediante el adaptador webhook; el recorrido IMAP cubre los nueve correos y la deduplicación. No se presenta un receptor ficticio como el recibo PF-02. Los workflows de prueba se desactivan al terminar y la tienda vuelve a su base habitual de laboratorio.
 
 ## Pendiente para cerrar HU-03
 
-1. Validar la credencial de OpenRouter en n8n y repetir los nueve correos con `openrouter/free`, sin alternativas de pago. Todavía no hay una llamada real satisfactoria al proveedor; no se atribuye coste ni precisión observados.
-2. Probar el disparador IMAP con un buzón ficticio y Message-ID real estable.
-3. Integrar PF-00/PF-02 de Rita y verificar el recibo tras un pago aceptado.
-4. Revisión humana de Rita y merge hacia `dev` cuando se satisfagan los criterios.
+1. Configurar en el laboratorio la credencial nativa OpenRouter llamada `PF · Modelo extracción` y ejecutar los nueve correos con `openrouter/free`, manteniendo precio máximo cero. No hay credencial de ese tipo disponible ni una llamada real satisfactoria observada.
+2. Recibir de Rita el workflow PF-02 y su PR/branch; conectarlo al PF-00 mediante `PF02_WORKFLOW_ID` y verificar el recibo real tras un pago parcial y una liquidación. El contrato de entrada conserva `$json.body`, conforme a [PF-00](../../specs/00-entrada-eventos.md).
+3. Revisión humana e integración en `dev` tras completar esas pruebas. La configuración de un buzón bancario externo y la publicación son posteriores y no se realizaron.
 
-Reproducción y conciliación: [configuración PF-03](../03-abonos-distancia.md). Los contratos no se cambiaron para aprobar pruebas: solo se registra la autorización explícita de `transferencia` en lugar del bloqueo anterior de F03-03.
+Reproducción, credenciales y entrega a Rita: [configuración PF-03](../03-abonos-distancia.md). Evidencia JSON local: `tests/n8n/.estado/03-evidencia.json`, `03-imap-evidencia.json` y `03-export-check.json`, ignorados por Git. No se alteraron expectativas para aprobar pruebas.

@@ -74,18 +74,18 @@
       "parameters": {
         "method": "POST",
         "url": "https://openrouter.ai/api/v1/chat/completions",
-        "authentication": "genericCredentialType",
-        "genericAuthType": "httpHeaderAuth",
+        "authentication": "predefinedCredentialType",
         "sendBody": true,
         "specifyBody": "json",
         "jsonBody": "={{ JSON.stringify($json.peticion_ia) }}",
         "options": {
           "timeout": 60000
-        }
+        },
+        "nodeCredentialType": "openRouterApi"
       },
       "credentials": {
-        "httpHeaderAuth": {
-          "name": "PF · API tienda"
+        "openRouterApi": {
+          "name": "PF · Modelo extracción"
         }
       }
     },

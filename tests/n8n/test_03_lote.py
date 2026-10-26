@@ -13,7 +13,7 @@ for index,n in enumerate(flow['nodes']):
         hook=webhook(n['name'],'qa-lote-'+uuid.uuid4().hex);flow['nodes'][index]=hook
     if n['name']=='Extraer pago':
         n['parameters']['url']='http://simulador:8080/chat/completions'
-        n['parameters'].pop('authentication',None);n['parameters'].pop('genericAuthType',None);n.pop('credentials',None)
+        n['parameters'].pop('authentication',None);n['parameters'].pop('genericAuthType',None);n['parameters'].pop('nodeCredentialType',None);n.pop('credentials',None)
 unpack={'id':str(uuid.uuid4()),'name':'Desempaquetar lote ficticio','type':'n8n-nodes-base.code','typeVersion':2,'position':[0,0],'parameters':{'jsCode':'return $input.first().json.body.correos.map(json=>({json}));'}}
 flow['nodes'].append(unpack)
 flow['connections'][hook['name']]={'main':[[{'node':unpack['name'],'type':'main','index':0}]]}

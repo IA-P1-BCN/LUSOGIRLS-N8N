@@ -2,13 +2,13 @@
 
 ## Estado y alcance
 
-Implementación en borrador: reglas y API probadas con IA simulada; pendientes OpenRouter real, buzón IMAP y recibo PF-02. [HU-03 / #4](https://github.com/IA-P1-BCN/LUSOGIRLS-N8N/issues/4). Autora: Fabiana; revisora: Rita. Entidades: PagoDetectado, Cliente, Apartado y Abono. Ver [evidencia y límites](../docs/pruebas/03-abonos-distancia.md) y [configuración](../docs/03-abonos-distancia.md).
+Implementación en borrador: reglas, API e IMAP local probados con IA simulada; pendientes OpenRouter real y recibo PF-02. [HU-03 / #4](https://github.com/IA-P1-BCN/LUSOGIRLS-N8N/issues/4). Autora: Fabiana; revisora: Rita. Entidades: PagoDetectado, Cliente, Apartado y Abono. Ver [evidencia y límites](../docs/pruebas/03-abonos-distancia.md) y [configuración](../docs/03-abonos-distancia.md).
 
 ## Decisiones de implementación · 22/10/2026
 
 Fabiana autoriza añadir `transferencia` como medio propio en la API y la interfaz, sin migrar ni reinterpretar pagos existentes. El caso de Lucía mantiene su expectativa original. Autoriza OpenRouter `openrouter/free`, limitado a proveedores con precio cero, y SMTP local con Mailpit para los avisos. Se integra con el registro PostgreSQL de PF-08.
 
-El disparador definitivo es IMAP con credencial de buzón por configurar. Las pruebas importan los `.eml` como entradas de un adaptador local, con Message-ID ficticio estable porque los archivos originales no lo incluyen. Una entrada sin ID estable no puede crear abonos.
+El disparador definitivo es IMAP. Las pruebas cubren tanto un adaptador webhook como recepción SMTP/IMAP real en GreenMail local: añaden Message-ID ficticio estable porque los `.eml` originales no lo incluyen, sin modificar los archivos. Una entrada sin ID estable no puede crear abonos. El buzón bancario externo queda por configurar.
 
 La IA extrae; se contrasta su extracción con el importe, ordenante, concepto y medio presentes en el texto bancario. Nombre completo de la app como prefijo de los tokens del ordenante, al menos dos tokens completos y candidato único; una inicial solo se admite junto a un número de apartado explícito en el texto y concordancia del nombre. Una abreviatura sin ID nunca autoriza un pago. Para Laura se usa el candidato posible solo para explicar el exceso, nunca para registrar.
 
@@ -38,7 +38,7 @@ Los motivos de revisión mantienen el vocabulario del contrato: `exceso_sobre_pe
 
 ## Credenciales y variables
 
-`PF · Buzón de pruebas` (IMAP), `PF · Modelo extracción` (Header Auth para OpenRouter), `PF · API tienda`, `PF · Notificaciones` y `PF · Registro auxiliar`. El proveedor acordado es OpenRouter, modelo `openrouter/free`, sin alternativas de pago y con precio máximo de entrada/salida cero. Solo se envían asunto y cuerpo ficticios; nunca el catálogo de clientes ni claves. Configurar `CUENTA_BUZON` estable y aplicar `infra/03-pagos.sql` antes de probar.
+`PF · Buzón de pruebas` (IMAP), `PF · Modelo extracción` (credencial nativa OpenRouter, tipo `openRouterApi`), `PF · API tienda`, `PF · Notificaciones` y `PF · Registro auxiliar`. El proveedor acordado es OpenRouter, modelo `openrouter/free`, sin alternativas de pago y con precio máximo de entrada/salida cero. Solo se envían asunto y cuerpo ficticios; nunca el catálogo de clientes ni claves. Configurar `CUENTA_BUZON` estable y aplicar `infra/03-pagos.sql` antes de probar.
 
 ## Pruebas y aceptación
 
@@ -61,3 +61,7 @@ Los motivos de revisión mantienen el vocabulario del contrato: `exceso_sobre_pe
 - [ ] Un mensaje ya confirmado no genera otro pago.
 - [ ] Fallo técnico o resultado incierto no provoca cobros duplicados.
 - [ ] Evidencia de PF-02 tras un pago aceptado y revisión humana de errores y datos enviados al proveedor.
+
+### Validación del 26/10/2026
+
+La recepción IMAP, los nueve correos y su repetición están probados con servidor local y Message-ID transmitido como cabecera. La IA permanece simulada; OpenRouter real y PF-02 siguen abiertos. El modelo usa un tipo de credencial distinto del Header Auth de la tienda para impedir que n8n reutilice esa clave al importar un flujo sin credencial del modelo. La exportación elimina IDs locales y conserva los nombres compartidos.

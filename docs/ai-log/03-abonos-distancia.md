@@ -11,3 +11,13 @@
 - Evidencia: [casos, timeout y lote](../pruebas/03-abonos-distancia.md). Ejecuciones 100–116 para negocio/errores; 65–67 para lote; 15 tests de backend pasaron.
 - Coordinación: PF-03 delega el recibo al evento `abono.registrado` de la app y a PF-02 de Rita; no implementa ni envía un recibo duplicado. Cada integrante configura sus propias credenciales; no se comparten claves personales en GitHub.
 - Estado: borrador, HU-03 en progreso. Faltan OpenRouter real, IMAP, recibo PF-02 y revisión humana. Sin merge ni publicación en la instancia habitual.
+
+## 26/10/2026 · Avance y dependencias de la PR #36
+
+- Prompt: corregir la PR #34 y terminar la #36; aclarar qué depende de Rita y preparar una explicación para ella.
+- Herramientas: Codex (agente basado en GPT-6), Git/GitHub CLI, Docker, n8n 2.44.5 y GreenMail 2.1.14. Sin llamadas reales a OpenRouter ni datos de clientes.
+- Incorporado `dev` (`6311a27`) mediante merge. No se modificó PF-02 ni se creó un sustituto presentado como su implementación.
+- Error reproducido: n8n asignaba Header Auth de la tienda al importar el nodo de modelo sin su credencial. Corregido con el tipo nativo OpenRouter; exportación con nombres compartidos y sin IDs locales. Añadidos tres tests de regresión y verificación real de importación/exportación.
+- Nueva validación: SMTP → IMAP → subflujo PF-03 con nueve correos y repetición. Primera corrida 141–160; segunda 161–180 con filtro por cabecera de test y mensajes anteriores preservados. Todos pasaron con IA simulada. Los fallos de extracción y timeout se verificaron por webhook en 124–140; backend: 15 tests correctos.
+- Evidencia y límites en [pruebas PF-03](../pruebas/03-abonos-distancia.md). El JSON original se recuperó de n8n, inactivo y sin referencias de instancia.
+- Pendientes separados: Fabiana configura y valida OpenRouter real; Rita entrega PF-02 para comprobar el recibo a través de PF-00. PR en borrador, HU-03 en progreso; sin merge ni publicación en la instancia habitual. La explicación para Rita se redactó para Fabiana, no se envió un mensaje externo.

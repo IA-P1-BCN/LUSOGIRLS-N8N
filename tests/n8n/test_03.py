@@ -8,9 +8,12 @@ from test_08 import activate,executions,finished
 
 root=Path(__file__).resolve().parents[2]
 live=os.environ.get('PF_TEST_OPENROUTER')=='1'
+imap=os.environ.get('PF_TEST_IMAP')=='1'
 login();prepare_credentials()
 if live:
     assert 'PF · Modelo extracción' in json.loads((STATE/'credentials.json').read_text()),'Falta credencial del modelo'
+model=next(n for n in json.loads((root/'workflows/03-abonos-distancia.json').read_text())['nodes'] if n['name']=='Extraer pago')
+assert model['credentials']['openRouterApi']['name']=='PF · Modelo extracción','Credencial incorrecta en Extraer pago'
 prefix='qa-pagos-'+uuid.uuid4().hex
 override=STATE/'tienda-pagos.json'
 override.write_text(json.dumps({'services':{'tienda':{'environment':{'DB_PATH':'/data/'+prefix+'.db'},'volumes':[str(root/'backend')+':/srv/backend:ro',str(root/'frontend')+':/srv/frontend:ro']}}}))
@@ -23,7 +26,13 @@ sql((root/'infra/03-pagos.sql').read_text())
 sql("UPDATE pf_config SET valor='http://tienda:8000' WHERE clave='API_BASE_URL'")
 sql("UPDATE pf_config SET valor='"+prefix+"' WHERE clave='CUENTA_BUZON'")
 error_id=(STATE/'error-id.txt').read_text();activate(request('/rest/workflows/'+error_id)['data'])
-flow,endpoint=fixture_flow(root/'workflows/03-abonos-distancia.json',error_id,model_mock=not live)
+if imap:
+    from imap_lab import imap_flow,deliver
+    flow=imap_flow(root/'workflows/03-abonos-distancia.json',error_id,model_mock=not live)
+    def send(mail):return deliver(flow,mail)
+else:
+    flow,endpoint=fixture_flow(root/'workflows/03-abonos-distancia.json',error_id,model_mock=not live)
+    def send(mail):return invoke(flow,endpoint,mail,timeout=90 if live else 45)
 fixtures=[
     (1,'CARMEN RUIZ GARCIA',10,'zuecos','bizum',None,1),
     (2,'JORGE M.',20,'apartado 2 bota','bizum',2,2),
@@ -48,7 +57,7 @@ try:
         # Extraídos esperados para el doble IA, definidos antes de ejecutar el flujo.
         request('/__fixture',{'extraction':extract(f)},base='http://127.0.0.1:18080')
         before=api('/api/abonos');before_messages=message_count()
-        run=invoke(flow,endpoint,mail)
+        run=send(mail)
         assert run['status']=='success',(f[0],run['id'],execution_data(run['id']).get('resultData',{}).get('lastNodeExecuted'))
         after=api('/api/abonos');new=[a for a in after if a['id'] not in {b['id'] for b in before}]
         if f[6]:
@@ -68,20 +77,20 @@ try:
                 reason={4:'exceso_sobre_pendiente_del_candidato',5:'identidad_insuficiente',6:'fuera_de_plazo',7:'cliente_desconocido'}[f[0]]
                 assert row['documento']['motivo']==reason
                 assert row['documento']['aviso_confirmado'] is True
-        evidence.append({'caso':f'F03-{f[0]:02d}','ejecucion':run['id'],'abonos_nuevos':len(new),'modelo':'OpenRouter real' if live else 'doble IA','resultado':'PASS'});print(json.dumps(evidence[-1]),flush=True)
+        evidence.append({'caso':f'F03-{f[0]:02d}','ejecucion':run['id'],'abonos_nuevos':len(new),'modelo':'OpenRouter real' if live else 'doble IA','entrada':'IMAP real local' if imap else 'adaptador webhook','ejecucion_imap':run.get('imap_execution'),'resultado':'PASS'});print(json.dumps(evidence[-1]),flush=True)
         if live:time.sleep(3)
     before=api('/api/abonos')
     mail=payload(next((ROOT/'data/correos').glob('01_*.eml')))
     request('/__fixture',{'extraction':extract(fixtures[0])},base='http://127.0.0.1:18080')
-    run=invoke(flow,endpoint,mail)
+    run=send(mail)
     assert run['status']=='success' and api('/api/abonos')==before
-    evidence.append({'caso':'F03-10 repetición','ejecucion':run['id'],'resultado':'PASS'});print(json.dumps(evidence[-1]),flush=True)
-    if not live:
+    evidence.append({'caso':'F03-10 repetición','ejecucion':run['id'],'ejecucion_imap':run.get('imap_execution'),'resultado':'PASS'});print(json.dumps(evidence[-1]),flush=True)
+    if not live and not imap:
         mail['metadata']['message-id']='<invalid-json@pruebas.example.test>'
         request('/__fixture',{'llm_content':'No es JSON'},base='http://127.0.0.1:18080')
         previous=[e['id'] for e in executions(error_id)]
         before_messages=message_count()
-        run=invoke(flow,endpoint,mail)
+        run=send(mail)
         assert run['status']=='error' and api('/api/abonos')==before
         handler=finished(error_id,previous)
         assert handler['status']=='success' and message_count()==before_messages+1
@@ -91,7 +100,7 @@ try:
         forged=extract(fixtures[0]);forged['importe']=9
         request('/__fixture',{'extraction':forged},base='http://127.0.0.1:18080')
         previous=[e['id'] for e in executions(error_id)]
-        run=invoke(flow,endpoint,mail)
+        run=send(mail)
         assert run['status']=='error' and api('/api/abonos')==before
         assert finished(error_id,previous)['status']=='success'
         evidence.append({'caso':'Importe IA distinto al correo','ejecucion':run['id'],'resultado':'PASS'});print(json.dumps(evidence[-1]),flush=True)
@@ -104,15 +113,21 @@ try:
         mail={'subject':'Bizum recibido','textPlain':'Importe: 1,00 EUR\nOrdenante: CLIENTE PRUEBA\nConcepto: apartado '+str(new['id']),'metadata':{'message-id':'<timeout@pruebas.example.test>'}}
         request('/__fixture',{'extraction':amount,'proxy_tienda':True,'timeout_after_post':True},base='http://127.0.0.1:18080')
         sql("UPDATE pf_config SET valor='http://simulador:8080' WHERE clave='API_BASE_URL'")
-        run=invoke(flow,endpoint,mail)
+        run=send(mail)
         assert run['status']=='error'
         assert len(api('/api/apartados/'+str(new['id']))['abonos'])==2
-        repeat=invoke(flow,endpoint,mail)
+        repeat=send(mail)
         assert repeat['status']=='success' and len(api('/api/apartados/'+str(new['id']))['abonos'])==2
         assert sql('SELECT count(*) FROM pf_bloqueos_apartado WHERE apartado_id='+str(new['id']))=='1'
         evidence.append({'caso':'Timeout después de POST','ejecucion':run['id'],'repeticion':repeat['id'],'abonos_nuevos':1,'resultado':'PASS'});print(json.dumps(evidence[-1]),flush=True)
     original=install(root/'workflows/03-abonos-distancia.json',error_id);export(original['id'],root/'workflows/03-abonos-distancia.json')
-    (STATE/('03-live-evidencia.json' if live else '03-evidencia.json')).write_text(json.dumps(evidence,indent=2))
+    exported=json.loads((root/'workflows/03-abonos-distancia.json').read_text())
+    model=next(n for n in exported['nodes'] if n['name']=='Extraer pago')
+    assert model['credentials']=={'openRouterApi':{'name':'PF · Modelo extracción'}},'La importación/exportación cambió la credencial del modelo'
+    mailbox=next(n for n in exported['nodes'] if n['type']=='n8n-nodes-base.emailReadImap')
+    assert mailbox['credentials']=={'imap':{'name':'PF · Buzón de pruebas'}}
+    evidence_name='03-'+('imap-' if imap else '')+('live-' if live else '')+'evidencia.json'
+    (STATE/evidence_name).write_text(json.dumps(evidence,indent=2))
 finally:
     request('/rest/workflows/'+flow['id']+'/deactivate',{})
     request('/rest/workflows/'+error_id+'/deactivate',{})
