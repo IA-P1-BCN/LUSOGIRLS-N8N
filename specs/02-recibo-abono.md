@@ -10,6 +10,8 @@ Subworkflow `workflows/02-recibo-abono.json`, llamado por PF-00 con Execute Work
 
 Correo por SMTP local autorizado (Mailpit). Remitente y destino de la tienda se leen en `pf_config` (`CORREO_REMITENTE`, `CORREO_MARISA`). Reserva atómica en `pf_registro` antes del SMTP y estado `confirmado` después.
 
+La talla es opcional en la app (`talla` puede ser `null` o vacía): si falta, el recibo dice `Talla: no indicada` y el flujo no falla. Es la misma regla que PF-01.
+
 El recibo muestra `importe`, `abonado` y `pendiente` tal como llegan, solo con formato de presentación (dos decimales con coma). No se calcula ningún importe ni interviene un modelo de IA. Los céntimos se obtienen del texto del número, sin multiplicar decimales (mismo método que PF-04), y solo se usan en la clave y en la comprobación de saldo cero.
 
 Claves separadas por destinatario, como en PF-01: `abono.registrado:<apartado_id>:<abonado_en_centimos>:<importe_en_centimos>` para el recibo al cliente y la misma clave con sufijo `:tienda` para el aviso a Marisa. Así, un aviso a la tienda no impide enviar el recibo si una repetición posterior llega con un correo válido.
@@ -18,7 +20,7 @@ El aviso a Marisa lleva un motivo: `email_ausente` (vacío o `null`), `email_inv
 
 Lanzan un error controlado hacia PF-08 (sin recibo): evento distinto de `abono.registrado`, apartado sin `id` válido, datos de cliente o producto ausentes, `importe` ausente o no positivo, datos financieros ausentes, estado distinto de `activo` y `liquidado`, y configuración de correo ausente.
 
-Los nombres `Recibir abono de PF-00` y `Validar abono` deben figurar en la lista de pasos de PF-08 (`workflows/08-errores.json`). Se añaden cuando la PR de HU-01, que modifica esa misma lista, esté integrada en `dev`.
+Los nombres `Recibir abono de PF-00` y `Validar abono` figuran en la lista de pasos de PF-08 (`workflows/08-errores.json`), junto con los de PF-01.
 
 ## Disparador y entradas
 

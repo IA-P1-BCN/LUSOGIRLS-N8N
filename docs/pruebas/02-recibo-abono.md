@@ -30,23 +30,26 @@ PF-02 se creó duplicando PF-01 en la instancia de Rita y renombrando `Recibir a
 
 En ningún caso PF-02 escribe en la tienda (`business_writes` 0): solo lee `pf_config` y escribe su reserva en `pf_registro`. Las cifras son las de la app; PF-02 solo les da formato.
 
-## Laboratorio aislado · 26/10/2026
+## Laboratorio aislado · 27/10/2026
 
-`python3 tests/n8n/lab.py 02` sobre el laboratorio de #32 (proyecto `lusogirls-pruebas`). Instala los JSON del repo (PF-08, PF-02 y PF-00), configura `PF02_WORKFLOW_ID` con el ID del laboratorio y envía los eventos al Webhook publicado de PF-00, como la app. PF-08 es Error Workflow de PF-00 y PF-02. El test no reescribe los JSON del repo y limpia entre casos solo las claves ficticias `abono.registrado:90%`, porque el primer pago de F02-03 coincide con la clave de F02-01.
+`python3 tests/n8n/lab.py 02` sobre el laboratorio de #32 (proyecto `lusogirls-pruebas`), con la rama fusionada con `dev` tras la revisión de Fabi (que reprodujo el fallo con talla nula y vacía). Instala los JSON del repo (PF-08, PF-02 y PF-00), configura `PF02_WORKFLOW_ID` con el ID del laboratorio y envía los eventos al Webhook publicado de PF-00, como la app. PF-08 es Error Workflow de PF-00 y PF-02. El test no reescribe los JSON del repo y limpia entre casos solo las claves ficticias `abono.registrado:90%`, porque el primer pago de F02-03 coincide con la clave de F02-01.
 
 | Caso | Ejecución del router | Resultado |
 | --- | --- | --- |
-| F02-01 | 61 → PF-02 62 | Un correo a `cliente@example.com` con «Modelo: Botin demo», «Talla: 38», «Importe de este abono: 20,00 €», «Total abonado: 30,00 €» y «Pendiente: 59,90 €»; sin aviso de recogida; `abono.registrado:9001:3000:2000` `confirmado`; cero avisos a Marisa |
-| F02-02 | 63 | Un correo al cliente con importe 59,90 €, total 89,90 €, pendiente 0,00 € y aviso de recogida; `abono.registrado:9001:8990:5990` `confirmado` |
-| F02-03 | primer pago 65, segundo 67, repetición 69 | Dos correos: pendientes 59,90 € y 39,90 €, totales 30,00 € y 50,00 €, ambos con importe 20,00 €; ambas claves `confirmado`. Repetir el segundo pago no envía nada |
-| Sin correo | 71; repetición 73 | `email: null`: un correo a `CORREO_MARISA` con `email_ausente`; clave con sufijo `:tienda` `confirmado`; cero correos al cliente; la repetición no duplica |
-| Correo no válido | 75 | `email: sin-arroba`: un correo a Marisa con `email_invalido`; cero correos al cliente |
-| Saldo contradictorio | 77 | `activo` con pendiente 0: un correo a Marisa con `saldo_contradictorio`, sin aviso de recogida; no se reserva la clave del recibo al cliente |
-| Importe ausente | 79 | `importe: null`: ejecución fallida y dos incidencias de PF-08 (81 y 82), una de ellas con «PF-02» y «Validar abono»; sin reserva ni correo al cliente |
+| F02-01 | 135 → PF-02 136 | Un correo a `cliente@example.com` con «Modelo: Botin demo», «Talla: 38», «Importe de este abono: 20,00 €», «Total abonado: 30,00 €» y «Pendiente: 59,90 €»; sin aviso de recogida; `abono.registrado:9001:3000:2000` `confirmado`; cero avisos a Marisa |
+| F02-02 | 137 | Un correo al cliente con importe 59,90 €, total 89,90 €, pendiente 0,00 € y aviso de recogida; `abono.registrado:9001:8990:5990` `confirmado` |
+| F02-03 | primer pago 139, segundo 141, repetición 143 | Dos correos: pendientes 59,90 € y 39,90 €, totales 30,00 € y 50,00 €, ambos con importe 20,00 €; ambas claves `confirmado`. Repetir el segundo pago no envía nada |
+| Sin correo | 145; repetición 147 | `email: null`: un correo a `CORREO_MARISA` con `email_ausente`; clave con sufijo `:tienda` `confirmado`; cero correos al cliente; la repetición no duplica |
+| Correo no válido | 149 | `email: sin-arroba`: un correo a Marisa con `email_invalido`; cero correos al cliente |
+| Saldo contradictorio | 151 | `activo` con pendiente 0: un correo a Marisa con `saldo_contradictorio`, sin aviso de recogida; no se reserva la clave del recibo al cliente |
+| Importe ausente | 153 | `importe: null`: ejecución fallida y dos incidencias de PF-08 (155 y 156), una de ellas con «PF-02» y «Validar abono»; sin reserva ni correo al cliente |
+| Sin talla (`null`) | 157; repetición 159 | Un único recibo al cliente con «Talla: no indicada» y total 30,00 €; `abono.registrado:9008:3000:2000` `confirmado`; la repetición no envía nada |
+| Sin talla (vacía) | 161; repetición 163 | Igual que el anterior con `talla: ""` (apartado 9009) |
 
-Resultado: los siete casos pasaron. Comparación de ventas, abonos, apartados y vales antes y después: sin cambios en la tienda.
+Resultado: los nueve casos pasaron. Comparación de ventas, abonos, apartados y vales antes y después: sin cambios en la tienda. La talla es opcional en la app (`talla: str | None` en el backend, el formulario envía `null` si se deja vacía), por eso el recibo no la exige.
 
 ## Pendiente fuera de esta PR
 
-- La lista de pasos de `workflows/08-errores.json` debe incluir `Recibir abono de PF-00` y `Validar abono`. El caso «Importe ausente» se ejecutó con esa lista ampliada; se incorpora a esta PR cuando la de HU-01, que modifica la misma lista, esté integrada en `dev`.
+- La copia de `PF-02 · Recibo de abono` en la instancia habitual de n8n de Rita se escribió antes del arreglo de la talla: las ejecuciones manuales 31 a 37 y la prueba integrada 38 y 39 se hicieron con esa versión y con apartados con talla. Debe actualizarse con el JSON del repo para que ambas coincidan. El comportamiento sin talla está verificado en el laboratorio con el JSON del repo.
+- Reimportar PF-08 y PF-02 en la instancia habitual tras el merge. La lista de pasos de `workflows/08-errores.json` ya incluye `Recibir abono de PF-00` y `Validar abono` junto con los de PF-01.
 - Seleccionar PF-08 como Error Workflow de PF-02 en la instancia habitual cuando se autorice publicar PF-08 (n8n 2.x solo permite elegir Error Workflows publicados). En el laboratorio ya está asociado.
