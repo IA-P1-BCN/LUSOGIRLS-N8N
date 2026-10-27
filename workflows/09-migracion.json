@@ -1,0 +1,539 @@
+{
+  "name": "PF-09 · Migración del Excel antiguo",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "migracion",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.2,
+      "position": [
+        0,
+        0
+      ],
+      "id": "7567ba3c-1ccb-4fa4-a074-9e815e8c5e05",
+      "name": "Recibir migración",
+      "webhookId": "c2ae683b-f1ab-46b0-bb45-c2ff5dd19648"
+    },
+    {
+      "parameters": {
+        "jsCode": "const FORMAS_PAGO = ['efectivo', 'tarjeta', 'bizum'];\n\nconst texto = (v) => String(v ?? '').replace(/[\\u00a0\\s]+/g, ' ').trim();\nconst sinTildes = (s) => s.normalize('NFD').replace(/[\\u0300-\\u036f]/g, '');\nconst clave = (v) => sinTildes(texto(v)).toLowerCase();\n\nfunction leerCsv(contenido) {\n  const t = String(contenido ?? '').replace(/^\\uFEFF/, '');\n  const registros = [];\n  let fila = [], campo = '', comillas = false;\n  for (let i = 0; i < t.length; i++) {\n    const c = t[i];\n    if (comillas) {\n      if (c === '\"' && t[i + 1] === '\"') { campo += '\"'; i++; }\n      else if (c === '\"') comillas = false;\n      else campo += c;\n    } else if (c === '\"') comillas = true;\n    else if (c === ',') { fila.push(campo); campo = ''; }\n    else if (c === '\\n' || c === '\\r') {\n      if (c === '\\r' && t[i + 1] === '\\n') i++;\n      fila.push(campo); registros.push(fila); fila = []; campo = '';\n    } else campo += c;\n  }\n  if (campo !== '' || fila.length) { fila.push(campo); registros.push(fila); }\n  const cabecera = (registros.shift() || []).map(clave);\n  return registros\n    .map((r, i) => ({ fila: i + 2, valores: Object.fromEntries(cabecera.map((h, j) => [h, r[j] ?? ''])) }))\n    .filter((r) => Object.values(r.valores).some((v) => texto(v) !== ''));\n}\n\n// dia/mes/anio; el anio de dos cifras es 2000 + aa\nfunction normalizarFecha(valor) {\n  const m = texto(valor).match(/^(\\d{1,2})\\/(\\d{1,2})\\/(\\d{2}|\\d{4})$/);\n  if (!m) return null;\n  const d = +m[1], mes = +m[2], a = m[3].length === 2 ? 2000 + +m[3] : +m[3];\n  const f = new Date(Date.UTC(a, mes - 1, d));\n  if (f.getUTCFullYear() !== a || f.getUTCMonth() !== mes - 1 || f.getUTCDate() !== d) return null;\n  return `${a}-${String(mes).padStart(2, '0')}-${String(d).padStart(2, '0')}`;\n}\n\n// devuelve centimos enteros o null; sin parseFloat\nfunction normalizarImporte(valor) {\n  let s = texto(valor).replace(/€/g, '').replace(/\\s/g, '');\n  if (!/^\\d[\\d.,]*$/.test(s)) return null;\n  const puntos = (s.match(/\\./g) || []).length, comas = (s.match(/,/g) || []).length;\n  if (puntos && comas) {\n    if (s.lastIndexOf(',') < s.lastIndexOf('.') || comas > 1) return null;\n    s = s.replace(/\\./g, '').replace(',', '.');\n  } else if (comas) {\n    if (comas > 1 || !/^\\d+,\\d{1,2}$/.test(s)) return null;\n    s = s.replace(',', '.');\n  } else if (puntos && !/^\\d+\\.\\d{1,2}$/.test(s)) return null;\n  const [ent, dec = ''] = s.split('.');\n  return parseInt(ent, 10) * 100 + parseInt((dec + '00').slice(0, 2), 10);\n}\n\nfunction normalizarFormaPago(valor) {\n  const f = clave(valor);\n  if (!f) return { valor: null, incidencia: 'forma_pago_ausente' };\n  if (FORMAS_PAGO.includes(f)) return { valor: f, incidencia: null };\n  return { valor: null, incidencia: 'forma_pago_no_reconocida' };\n}\n\nfunction normalizarFilaApartado({ fila, valores: v }) {\n  const r = { archivo: 'apartados', fila, clave: `migracion:apartados:${fila}`, ignorada_como: null, incidencias: [], datos: null };\n  if (/^total/i.test(texto(v.fecha))) { r.ignorada_como = 'total_manual'; return r; }\n  const fecha = normalizarFecha(v.fecha);\n  const precio = normalizarImporte(v.precio);\n  const abono = normalizarImporte(v.abono);\n  if (!fecha) r.incidencias.push('fecha_invalida');\n  if (precio === null || precio <= 0) r.incidencias.push('precio_invalido');\n  if (abono === null || abono <= 0) r.incidencias.push('abono_invalido');\n  const fp = normalizarFormaPago(v.forma_pago); // el CSV de apartados no trae esta columna\n  if (fp.incidencia) r.incidencias.push(fp.incidencia);\n  r.datos = {\n    fecha, cliente: texto(v.cliente), cliente_clave: clave(v.cliente),\n    telefono: texto(v.telefono).replace(/\\D/g, ''),\n    producto: texto(v.modelo), producto_clave: clave(v.modelo), talla: texto(v.talla),\n    precio_cent: precio, abono_cent: abono,\n    precio: precio === null ? null : precio / 100, abono: abono === null ? null : abono / 100,\n    forma_pago: fp.valor, notas: texto(v.notas),\n  };\n  return r;\n}\n\nfunction normalizarFilaVenta({ fila, valores: v }) {\n  const r = { archivo: 'ventas', fila, clave: `migracion:ventas:${fila}`, ignorada_como: null, incidencias: [], datos: null };\n  if (/^total/i.test(texto(v.fecha))) { r.ignorada_como = 'total_manual'; return r; }\n  const fecha = normalizarFecha(v.fecha);\n  const importe = normalizarImporte(v.importe);\n  if (!fecha) r.incidencias.push('fecha_invalida');\n  if (importe === null || importe <= 0) r.incidencias.push('importe_invalido');\n  const fp = normalizarFormaPago(v.forma_pago);\n  if (fp.incidencia) r.incidencias.push(fp.incidencia);\n  r.datos = { fecha, concepto: texto(v.concepto), concepto_clave: clave(v.concepto),\n    importe_cent: importe, importe: importe === null ? null : importe / 100, forma_pago: fp.valor };\n  return r;\n}\n\nconst body = $input.first().json.body ?? {};\nreturn [{ json: {\n  modo: body.modo === 'carga' ? 'carga' : 'analisis',\n  autorizada: body.autorizada === true,\n  apartados: leerCsv(body.csv_apartados).map(normalizarFilaApartado),\n  ventas: leerCsv(body.csv_ventas).map(normalizarFilaVenta),\n} }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        224,
+        0
+      ],
+      "id": "209a44ac-0ba2-456e-ab61-4dc32776b7ab",
+      "name": "Analizar archivos"
+    },
+    {
+      "parameters": {
+        "jsCode": "const MINIMO_INICIAL_CENT = 500;\nconst PLAZO_DIAS = 90;\n\nconst sumarDias = (iso, dias) => {\n  const d = new Date(`${iso}T00:00:00Z`);\n  d.setUTCDate(d.getUTCDate() + dias);\n  return d.toISOString().slice(0, 10);\n};\nconst euros = (cent) => cent / 100;\n\nfunction agrupar({ apartados, ventas }) {\n  const ignoradas = [];\n  const validas = [];\n  for (const r of apartados) {\n    if (r.ignorada_como) ignoradas.push({ archivo: r.archivo, fila: r.fila, clave: r.clave, ignorada_como: r.ignorada_como });\n    else validas.push(r);\n  }\n\n  // telefonos compartidos por nombres distintos: identidad dudosa\n  const nombresPorTelefono = new Map();\n  for (const r of validas) {\n    const t = r.datos.telefono;\n    if (!t) continue;\n    if (!nombresPorTelefono.has(t)) nombresPorTelefono.set(t, new Set());\n    nombresPorTelefono.get(t).add(r.datos.cliente_clave);\n  }\n\n  // un apartado = mismo cliente, producto y talla\n  const porGrupo = new Map();\n  for (const r of validas) {\n    const d = r.datos;\n    const id = `${d.cliente_clave}|${d.producto_clave}|${d.talla}`;\n    if (!porGrupo.has(id)) porGrupo.set(id, []);\n    porGrupo.get(id).push(r);\n  }\n\n  const ventasValidas = ventas.filter((v) => {\n    if (v.ignorada_como) { ignoradas.push({ archivo: v.archivo, fila: v.fila, clave: v.clave, ignorada_como: v.ignorada_como }); return false; }\n    return true;\n  });\n  const ventaUsada = new Map(); // fila de venta -> clave del pago\n\n  const grupos = [];\n  for (const [id, filas] of porGrupo) {\n    filas.sort((a, b) => (a.datos.fecha || '').localeCompare(b.datos.fecha || '') || a.fila - b.fila);\n    const [ini, ...resto] = filas;\n    const d = ini.datos;\n    const motivos = new Set();\n    const avisos = new Set();\n\n    for (const f of filas) for (const c of f.incidencias) if (c !== 'forma_pago_ausente') motivos.add(c);\n    if (new Set(filas.map((f) => f.datos.telefono).filter(Boolean)).size > 1) motivos.add('identidad_dudosa_telefonos_distintos');\n    if ([...nombresPorTelefono.get(d.telefono) || []].length > 1) motivos.add('identidad_dudosa_telefono_compartido');\n    if (!filas.some((f) => f.datos.telefono)) avisos.add('sin_telefono_contacto_no_verificable');\n    if (new Set(filas.map((f) => f.datos.precio_cent)).size > 1) motivos.add('precio_inconsistente');\n    if (d.abono_cent !== null && d.abono_cent < MINIMO_INICIAL_CENT) motivos.add('abono_inicial_menor_que_5');\n    if (d.abono_cent !== null && d.precio_cent !== null && d.abono_cent > d.precio_cent) motivos.add('abono_inicial_mayor_que_precio');\n    const total = filas.reduce((s, f) => s + (f.datos.abono_cent || 0), 0);\n    if (d.precio_cent !== null && total > d.precio_cent) motivos.add('pagos_superan_precio');\n    if (d.fecha && resto.some((f) => f.datos.fecha > sumarDias(d.fecha, PLAZO_DIAS))) motivos.add('abono_fuera_de_plazo');\n    const retenida = motivos.size > 0;\n\n    // pagos: el primero es el inicial; los demas son abonos posteriores\n    const pagos = filas.map((f, i) => {\n      const pago = { rol: i === 0 ? 'inicial' : 'abono', fila: f.fila, clave: f.clave, fecha: f.datos.fecha,\n        importe_cent: f.datos.abono_cent, forma_pago: f.datos.forma_pago, fuente_forma_pago: f.datos.forma_pago ? 'csv_apartados' : null, venta_fila: null };\n      if (!pago.forma_pago) {\n        const c = ventasValidas.filter((v) => !ventaUsada.has(v.fila) && !v.incidencias.includes('fecha_invalida') &&\n          v.datos.fecha === pago.fecha && v.datos.importe_cent === pago.importe_cent &&\n          (v.datos.concepto_clave.includes(d.cliente_clave) || (d.producto_clave && v.datos.concepto_clave.includes(d.producto_clave))));\n        if (c.length === 1) {\n          ventaUsada.set(c[0].fila, pago.clave);\n          pago.venta_fila = c[0].fila;\n          if (c[0].datos.forma_pago) { pago.forma_pago = c[0].datos.forma_pago; pago.fuente_forma_pago = `ventas:fila-${c[0].fila}`; }\n        } else if (c.length > 1) avisos.add(`venta_ambigua_fila_${pago.fila}`);\n      }\n      return pago;\n    });\n    if (pagos.some((p) => !p.forma_pago)) motivos.add('forma_pago_ausente');\n\n    grupos.push({\n      id, cliente: d.cliente, telefono: d.telefono, producto: d.producto, talla: d.talla, precio_cent: d.precio_cent,\n      estado: retenida ? 'retenida' : motivos.size ? 'en_revision' : 'lista',\n      hold_related_rows: retenida, motivos: [...motivos], avisos: [...avisos],\n      normalizado: { fecha: d.fecha, precio: euros(d.precio_cent), abono_inicial: euros(d.abono_cent) },\n      pagos,\n    });\n  }\n\n  // ventas: pago de apartado, revision o venta real\n  const pagoDeApartado = [], ventasRevision = [], ventasReales = [];\n  for (const v of ventasValidas) {\n    if (ventaUsada.has(v.fila)) { pagoDeApartado.push({ fila: v.fila, clave: v.clave, pago_clave: ventaUsada.get(v.fila) }); continue; }\n    const motivos = [...v.incidencias];\n    if (/\\b(abono|apartado)\\b/.test(v.datos.concepto_clave)) motivos.push('venta_parece_abono_sin_apartado');\n    if (motivos.length) ventasRevision.push({ fila: v.fila, clave: v.clave, motivos });\n    else ventasReales.push(v);\n  }\n\n  // plan de carga: solo apartados listos y ventas reales\n  const plan = [];\n  for (const g of grupos.filter((x) => x.estado === 'lista')) {\n    const [ini, ...abonos] = g.pagos;\n    const payload = { cliente: g.cliente, producto: g.producto, precio: euros(g.precio_cent),\n      abono_inicial: euros(ini.importe_cent), forma_pago: ini.forma_pago, fecha: ini.fecha };\n    if (g.telefono) payload.telefono = g.telefono;\n    if (g.talla) payload.talla = g.talla;\n    plan.push({ tipo: 'apartado', clave: ini.clave, grupo: g.id, payload });\n    for (const a of abonos) plan.push({ tipo: 'abono', clave: a.clave, grupo: g.id, apartado_clave: ini.clave,\n      payload: { importe: euros(a.importe_cent), forma_pago: a.forma_pago, fecha: a.fecha } });\n  }\n  for (const v of ventasReales) plan.push({ tipo: 'venta', clave: v.clave,\n    payload: { concepto: v.datos.concepto, importe: euros(v.datos.importe_cent), forma_pago: v.datos.forma_pago, fecha: v.datos.fecha } });\n\n  const cuenta = (e) => grupos.filter((g) => g.estado === e).length;\n  return {\n    grupos, ventas_pago_de_apartado: pagoDeApartado, ventas_revision: ventasRevision, ignoradas, plan_carga: plan,\n    resumen: { grupos: grupos.length, listas: cuenta('lista'), en_revision: cuenta('en_revision'), retenidas: cuenta('retenida'),\n      ventas_reales: ventasReales.length, ventas_pago_de_apartado: pagoDeApartado.length, ventas_revision: ventasRevision.length,\n      ignoradas: ignoradas.length, post_count: plan.length },\n  };\n}\n\nconst entrada = $input.first().json;\nreturn [{ json: { modo: entrada.modo, autorizada: entrada.autorizada, ...agrupar(entrada) } }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        448,
+        0
+      ],
+      "id": "191052f5-2543-4a60-88a8-6bad1e78f6d2",
+      "name": "Agrupar y revisar"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT COALESCE(jsonb_object_agg(clave,valor),'{}'::jsonb) AS config, $1::jsonb AS entrada FROM pf_config",
+        "options": {
+          "queryReplacement": "={{ [JSON.stringify($json)] }}"
+        }
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.7,
+      "position": [
+        656,
+        0
+      ],
+      "id": "8d0c14e1-b11c-4f18-855c-0ee6e8795749",
+      "name": "Leer configuración",
+      "credentials": {
+        "postgres": {
+          "name": "PF · Registro auxiliar"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "fromEmail": "={{ $json.documento.remitente }}",
+        "toEmail": "={{ $json.documento.destinatario }}",
+        "subject": "={{ $json.documento.asunto }}",
+        "emailFormat": "text",
+        "text": "={{ $json.documento.texto }}",
+        "options": {
+          "appendAttribution": false
+        }
+      },
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2.1,
+      "position": [
+        1904,
+        464
+      ],
+      "id": "1cc3fc19-6ce6-469f-812f-0363679e24fd",
+      "name": "Enviar informe",
+      "webhookId": "257e4dd1-86b8-44ab-8350-d36e3154d3ad",
+      "credentials": {
+        "smtp": {
+          "name": "PF · Notificaciones"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const MOTIVOS = {\n  forma_pago_ausente: 'falta la forma de pago de algún pago',\n  forma_pago_no_reconocida: 'forma de pago no reconocida',\n  abono_inicial_menor_que_5: 'abono inicial menor de 5 €',\n  abono_inicial_mayor_que_precio: 'abono inicial mayor que el precio',\n  pagos_superan_precio: 'los pagos superan el precio',\n  abono_fuera_de_plazo: 'abono posterior a los 90 días',\n  precio_inconsistente: 'precio distinto entre filas',\n  identidad_dudosa_telefonos_distintos: 'mismo nombre con teléfonos distintos',\n  identidad_dudosa_telefono_compartido: 'teléfono compartido por clientes distintos',\n  fecha_invalida: 'fecha no válida',\n  precio_invalido: 'precio no válido',\n  abono_invalido: 'abono no válido',\n  importe_invalido: 'importe no válido',\n  venta_parece_abono_sin_apartado: 'parece un abono pero no se encuentra su apartado',\n  sin_telefono_contacto_no_verificable: 'sin teléfono: enlazado solo por nombre, producto y talla',\n};\nconst txt = (c) => MOTIVOS[c] || (c.startsWith('venta_ambigua_fila_') ? `varias ventas encajan con el pago de la fila ${c.split('_').pop()}` : c);\nconst eur = (cent) => `${(cent / 100).toFixed(2).replace('.', ',')} €`;\nconst filas = (g) => `${g.pagos.length > 1 ? 'filas' : 'fila'} ${g.pagos.map((p) => p.fila).join(', ')}`;\nconst dia = (iso) => iso ? iso.split('-').reverse().join('/') : 'sin fecha';\nconst pagoTxt = (p) => `${p.rol} ${eur(p.importe_cent)} el ${dia(p.fecha)} (${p.forma_pago || 'forma de pago desconocida'}${p.venta_fila ? `, según ventas fila ${p.venta_fila}` : ''})`;\n\nfunction redactar(a, config) {\n  const r = a.resumen;\n  const bloqueGrupo = (g) => [\n    `- ${g.cliente} · ${g.producto} T${g.talla} · ${eur(g.precio_cent)} · ${filas(g)}`,\n    ...g.pagos.map((p) => `    ${pagoTxt(p)}`),\n    ...g.motivos.map((m) => `    Motivo: ${txt(m)}`),\n    ...g.avisos.map((m) => `    Aviso: ${txt(m)}`),\n  ];\n  const seccion = (titulo, lineas) => lineas.length ? ['', titulo, ...lineas] : [];\n  const listas = a.grupos.filter((g) => g.estado === 'lista');\n  const revision = a.grupos.filter((g) => g.estado === 'en_revision');\n  const retenidas = a.grupos.filter((g) => g.estado === 'retenida');\n  const ventasPlan = a.plan_carga.filter((o) => o.tipo === 'venta');\n\n  const lineas = [\n    'Hola Marisa:',\n    '',\n    'Este es el análisis del Excel antiguo. No se ha escrito nada en la tienda.',\n    '',\n    'Resumen',\n    `- Apartados encontrados: ${r.grupos} (listos ${r.listas}, en revisión ${r.en_revision}, retenidos ${r.retenidas})`,\n    `- Ventas reales: ${r.ventas_reales}`,\n    `- Filas de ventas que son pagos de apartados: ${r.ventas_pago_de_apartado}`,\n    `- Filas ignoradas: ${r.ignoradas}`,\n    `- Operaciones que se cargarían: ${r.post_count}`,\n    ...seccion('Necesitan tu decisión (no se cargan)', revision.flatMap(bloqueGrupo)),\n    ...seccion('Retenidos con todas sus filas (no se cargan)', retenidas.flatMap(bloqueGrupo)),\n    ...seccion('Ventas que necesitan revisión', a.ventas_revision.map((v) => `- Ventas fila ${v.fila}: ${v.motivos.map(txt).join('; ')}`)),\n    ...seccion('Plan de carga: apartados', listas.flatMap(bloqueGrupo)),\n    ...seccion('Plan de carga: ventas', ventasPlan.map((o) => `- ${dia(o.payload.fecha)} · ${o.payload.concepto} · ${eur(Math.round(o.payload.importe * 100))} · ${o.payload.forma_pago} (fila ${o.clave.split(':')[2]})`)),\n    ...seccion('Pagos de apartados que estaban en el libro de ventas (no se cargan como venta)', a.ventas_pago_de_apartado.map((v) => `- Ventas fila ${v.fila} → apartados fila ${v.pago_clave.split(':')[2]}`)),\n    ...seccion('Ignoradas', a.ignoradas.map((i) => `- ${i.archivo} fila ${i.fila}: ${i.ignorada_como === 'total_manual' ? 'total escrito a mano' : i.ignorada_como}`)),\n    '',\n    'La carga solo se hará cuando confirmes este plan. Las filas en revisión se cargarán cuando indiques la forma de pago o la corrección.',\n  ];\n  return {\n    destinatario: config.CORREO_MARISA,\n    remitente: config.CORREO_REMITENTE,\n    asunto: `Paso Firme · Migración del Excel: ${r.post_count} operaciones listas, ${r.en_revision + r.retenidas} apartados por revisar`,\n    texto: lineas.join('\\n'),\n  };\n}\n\nconst { config, entrada } = $input.first().json;\nreturn [{ json: { ...entrada, documento: redactar(entrada, config) } }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1488,
+        352
+      ],
+      "id": "1d120826-44ce-413c-8200-a21ddd0f1e9a",
+      "name": "Redactar informe"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "bf6e18b8-242b-48e7-99bb-37bc4472026e",
+              "leftValue": "={{ $json.entrada.modo === 'carga' && $json.entrada.autorizada === true && $json.config.MIGRACION_CARGA_PERMITIDA === 'si' && $json.entrada.plan_carga.length > 0 }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1088,
+        16
+      ],
+      "id": "0ba0e99f-8d5d-4161-ab4b-ddb136b15b7a",
+      "name": "¿Carga autorizada?"
+    },
+    {
+      "parameters": {
+        "jsCode": "const { config, entrada } = $input.first().json;\nconst RUTAS = { apartado: '/api/apartados', venta: '/api/ventas', abono: '' };\nreturn entrada.plan_carga.map((o) => ({ json: {\n  clave: o.clave,\n  apartado_clave: o.apartado_clave || '',\n  documento: { tipo_operacion: o.tipo, ruta: RUTAS[o.tipo], grupo: o.grupo || null, payload: o.payload },\n} }));\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1360,
+        -144
+      ],
+      "id": "d8548b7c-dd3f-41e9-8dae-e1c3ac832077",
+      "name": "Preparar operaciones"
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [
+        1712,
+        -416
+      ],
+      "id": "998a9b3f-a4b2-4c27-b4cb-b5ae23fe5037",
+      "name": "Recorrer operaciones"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO pf_registro(clave,tipo,estado,ejecucion,documento) SELECT $1,'migracion','reservado',$2, CASE WHEN $4='' THEN $3::jsonb ELSE $3::jsonb || jsonb_build_object('ruta','/api/apartados/'||(a.documento->'resultado'->>'id')||'/abonos') END FROM (SELECT 1) AS uno LEFT JOIN pf_registro a ON a.clave=$4 AND a.estado='confirmado' WHERE $4='' OR a.clave IS NOT NULL ON CONFLICT DO NOTHING RETURNING clave,documento",
+        "options": {
+          "queryReplacement": "={{ [$json.clave, $execution.id, JSON.stringify($json.documento), $json.apartado_clave] }}"
+        }
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.7,
+      "position": [
+        1968,
+        -256
+      ],
+      "id": "69182e8e-77c3-40bb-b3f0-cabe712ad043",
+      "name": "Reservar operación",
+      "alwaysOutputData": true,
+      "credentials": {
+        "postgres": {
+          "name": "PF · Registro auxiliar"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "02705503-eab3-40db-aba6-ce7552465edd",
+              "leftValue": "={{ !!$json.clave }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        2224,
+        -192
+      ],
+      "id": "62c1873f-9b08-4105-9c83-13b4cea3ba3e",
+      "name": "¿Reservada?"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $('Leer configuración').first().json.config.API_BASE_URL + $json.documento.ruta }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.documento.payload) }}",
+        "options": {
+          "timeout": 10000
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        2464,
+        -240
+      ],
+      "id": "85473295-c9a7-47e3-b36c-47a2edb764b0",
+      "name": "Crear en tienda",
+      "credentials": {
+        "httpHeaderAuth": {
+          "name": "PF · API tienda"
+        }
+      },
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE pf_registro SET estado='confirmado', actualizado=now(), documento=documento||jsonb_build_object('resultado',$3::jsonb) WHERE clave=$1 AND ejecucion=$2 AND estado='reservado' RETURNING clave,estado",
+        "options": {
+          "queryReplacement": "={{ [$('Reservar operación').item.json.clave, $execution.id, JSON.stringify($json)] }}"
+        }
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.7,
+      "position": [
+        2688,
+        -208
+      ],
+      "id": "1c1900d7-3930-403b-96ea-8d9f483b3553",
+      "name": "Confirmar operación",
+      "alwaysOutputData": true,
+      "credentials": {
+        "postgres": {
+          "name": "PF · Registro auxiliar"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE pf_registro SET estado='revision', actualizado=now(), documento=documento||jsonb_build_object('error',$3::text) WHERE clave=$1 AND ejecucion=$2 AND estado='reservado' RETURNING clave,estado",
+        "options": {
+          "queryReplacement": "={{ [$('Reservar operación').item.json.clave, $execution.id, String($json.error?.message ?? JSON.stringify($json)).slice(0, 500)] }}"
+        }
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.7,
+      "position": [
+        2496,
+        96
+      ],
+      "id": "8f304b2c-11b5-4c02-9d07-914f5dd04657",
+      "name": "Marcar revisión",
+      "alwaysOutputData": true,
+      "credentials": {
+        "postgres": {
+          "name": "PF · Registro auxiliar"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT p.clave, coalesce(r.estado,'sin_reservar') AS estado, coalesce(r.ejecucion=$2,false) AS en_esta_ejecucion, r.documento->>'error' AS error FROM jsonb_array_elements_text($1::jsonb) WITH ORDINALITY AS p(clave,n) LEFT JOIN pf_registro r USING (clave) ORDER BY n",
+        "options": {
+          "queryReplacement": "={{ [JSON.stringify($('Leer configuración').first().json.entrada.plan_carga.map(o => o.clave)), $execution.id] }}"
+        }
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.7,
+      "position": [
+        1968,
+        -448
+      ],
+      "id": "61014a19-9170-4d9e-8ae9-38838de33185",
+      "name": "Consultar carga",
+      "executeOnce": true,
+      "credentials": {
+        "postgres": {
+          "name": "PF · Registro auxiliar"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const { config, entrada } = $('Leer configuración').first().json;\nconst plan = Object.fromEntries(entrada.plan_carga.map((o) => [o.clave, o]));\nconst filas = $input.all().map((i) => i.json).filter((r) => r.clave);\nconst eur = (n) => `${Number(n).toFixed(2).replace('.', ',')} €`;\nconst describir = (clave) => {\n  const o = plan[clave] || {}; const p = o.payload || {}; const fila = clave.split(':').slice(1).join(' fila ');\n  if (o.tipo === 'apartado') return `${fila}: apartado de ${p.cliente} · ${p.producto} · inicial ${eur(p.abono_inicial)}`;\n  if (o.tipo === 'abono') return `${fila}: abono de ${eur(p.importe)} del ${p.fecha.split('-').reverse().join('/')}`;\n  if (o.tipo === 'venta') return `${fila}: venta ${p.concepto} · ${eur(p.importe)}`;\n  return fila;\n};\nconst de = (cond) => filas.filter(cond);\nconst creadas = de((r) => r.estado === 'confirmado' && r.en_esta_ejecucion);\nconst yaEstaban = de((r) => r.estado === 'confirmado' && !r.en_esta_ejecucion);\nconst revision = de((r) => r.estado === 'revision');\nconst pendientes = de((r) => r.estado === 'reservado');\nconst sinReservar = de((r) => r.estado === 'sin_reservar');\nconst seccion = (titulo, lista, extra = () => '') => lista.length ? ['', `${titulo} (${lista.length})`, ...lista.map((r) => `- ${describir(r.clave)}${extra(r)}`)] : [];\nconst fuera = entrada.resumen.en_revision + entrada.resumen.retenidas;\nconst lineas = [\n  'Hola Marisa:',\n  '',\n  'Resultado de la carga del Excel antiguo que autorizaste.',\n  ...seccion('Creadas ahora', creadas),\n  ...seccion('Ya estaban cargadas (no se repiten)', yaEstaban),\n  ...seccion('En revisión: la tienda no confirmó la operación, no se reintenta', revision, (r) => r.error ? `\\n    Respuesta: ${r.error}` : ''),\n  ...seccion('Pendientes de conciliar: reservadas sin confirmación, comprobar en la tienda', pendientes),\n  ...seccion('Sin cargar: su apartado no está confirmado', sinReservar),\n  '',\n  `Quedan fuera de esta carga ${fuera} apartados en revisión o retenidos, según el informe de análisis.`,\n];\nreturn [{ json: { documento: {\n  destinatario: config.CORREO_MARISA,\n  remitente: config.CORREO_REMITENTE,\n  asunto: `Paso Firme · Carga de la migración: ${creadas.length} creadas, ${yaEstaban.length} ya estaban, ${revision.length + pendientes.length + sinReservar.length} por revisar`,\n  texto: lineas.join('\\n'),\n}, resumen_carga: { creadas: creadas.length, ya_estaban: yaEstaban.length, revision: revision.length, pendientes: pendientes.length, sin_reservar: sinReservar.length } } }];\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2240,
+        -416
+      ],
+      "id": "bb857c40-5b6a-436d-adbc-a21aad8412c8",
+      "name": "Redactar resultado"
+    }
+  ],
+  "connections": {
+    "Recibir migración": {
+      "main": [
+        [
+          {
+            "node": "Analizar archivos",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Analizar archivos": {
+      "main": [
+        [
+          {
+            "node": "Agrupar y revisar",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Agrupar y revisar": {
+      "main": [
+        [
+          {
+            "node": "Leer configuración",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Leer configuración": {
+      "main": [
+        [
+          {
+            "node": "¿Carga autorizada?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Redactar informe": {
+      "main": [
+        [
+          {
+            "node": "Enviar informe",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "¿Carga autorizada?": {
+      "main": [
+        [
+          {
+            "node": "Preparar operaciones",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Redactar informe",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Preparar operaciones": {
+      "main": [
+        [
+          {
+            "node": "Recorrer operaciones",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Recorrer operaciones": {
+      "main": [
+        [
+          {
+            "node": "Consultar carga",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Reservar operación",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Reservar operación": {
+      "main": [
+        [
+          {
+            "node": "¿Reservada?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "¿Reservada?": {
+      "main": [
+        [
+          {
+            "node": "Crear en tienda",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Recorrer operaciones",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Crear en tienda": {
+      "main": [
+        [
+          {
+            "node": "Confirmar operación",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Marcar revisión",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Confirmar operación": {
+      "main": [
+        [
+          {
+            "node": "Recorrer operaciones",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Marcar revisión": {
+      "main": [
+        [
+          {
+            "node": "Recorrer operaciones",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Consultar carga": {
+      "main": [
+        [
+          {
+            "node": "Redactar resultado",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Redactar resultado": {
+      "main": [
+        [
+          {
+            "node": "Enviar informe",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "timezone": "Europe/Madrid",
+    "saveDataErrorExecution": "all",
+    "saveDataSuccessExecution": "all",
+    "callerPolicy": "workflowsFromSameOwner"
+  },
+  "active": false,
+  "pinData": {}
+}
