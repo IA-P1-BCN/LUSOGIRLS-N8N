@@ -230,6 +230,23 @@ try:
     assert sql("SELECT count(*) FROM pf_registro WHERE clave LIKE 'abono.registrado:9012%'") == '0'
     record('Importe ausente', run, incidencias=2, ejecuciones_pf08=[h['id'] for h in handlers])
 
+    # Talla opcional en la app (talla: str | None): el recibo sale con "Talla: no indicada" y un
+    # evento repetido no lo duplica.
+    for apartado_id, talla in ((9008, None), (9009, '')):
+        payload = variante('F02-01', id=apartado_id, talla=talla)
+        run, before = enviar(router, payload)
+        assert message_count() == before + 1
+        last = messages()[0]
+        assert recipients(last) == [payload['datos']['email']]
+        text = mail(last)['Text']
+        assert 'Talla: no indicada' in text and 'Total abonado: 30,00 €' in text, text
+        assert estado('abono.registrado:%d:3000:2000' % apartado_id) == 'confirmado'
+        assert sql("SELECT count(*) FROM pf_registro WHERE clave='abono.registrado:%d:3000:2000:tienda'" % apartado_id) == '0'
+        repeat, before = enviar(router, payload)
+        assert message_count() == before
+        record('Sin talla (%s)' % ('null' if talla is None else 'vacía'), run, repeticion=repeat['id'],
+               correos_cliente=1, talla='no indicada', correos_nuevos_repeticion=0)
+
     assert business_snapshot() == business_before, 'Las pruebas alteraron la tienda'
     (STATE / '02-evidencia.json').write_text(json.dumps(evidence, ensure_ascii=False, indent=2))
 finally:
