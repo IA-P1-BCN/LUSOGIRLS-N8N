@@ -1,0 +1,241 @@
+# PF-10 · Saldo por Telegram
+
+## Estado y alcance
+
+Propuesta de nivel Avanzado. [HU-11 / #12](https://github.com/IA-P1-BCN/LUSOGIRLS-N8N/issues/12) (Should). Autora: Rita; revisora: Fabiana. Rita aprobó el plan el 27/10/2026 y la spec el 28/10/2026, en ambos casos tras una revisión externa; esta spec incorpora sus ajustes.
+
+Alcance: el cliente escribe al bot de la tienda en un chat privado, comparte su propio contacto de Telegram con un botón y recibe, para cada apartado `activo` con ese teléfono, lo que le falta por pagar y la fecha límite, tal como los da la API.
+
+Exclusiones:
+
+- Sin modelo de IA: los mensajes se clasifican con reglas fijas.
+- Sin escrituras en la app ni en `pf_registro`. No se guarda ningún vínculo entre Telegram y cliente.
+- Sin mensajes por iniciativa del bot: solo responde en el chat que le escribe.
+- Sin apartados `liquidado` o `vencido`, ni códigos de vale.
+- Sin datos en chats de grupo ni canales.
+- Sin vencer apartados fuera de plazo: lo hace PF-06.
+
+## Ontología y fuentes
+
+Apartado ([schemas/apartado.py](../backend/schemas/apartado.py), [routes/apartados.py](../backend/routes/apartados.py)): se usan `id`, `cliente`, `telefono`, `producto`, `talla`, `estado`, `pendiente` y `fecha_limite`. La app calcula `pendiente` y `fecha_limite` ([models/apartado.py](../backend/models/apartado.py)); el flujo solo les da formato. Cliente es un concepto sin entidad en la app ([ontología](../docs/ontologia.md)).
+
+Ampliación de diseño que pide la ontología (identidad y consentimiento de Telegram):
+
+- Identidad: el número que Telegram verifica para la cuenta que escribe. Solo se obtiene cuando el cliente comparte su propio contacto, y se compara por igualdad exacta, tras normalizar, con el `telefono` de cada apartado. No se usan nombre ni email.
+- Consentimiento: compartir el contacto en un chat privado es la petición del cliente para esa consulta. No se guarda ni autoriza otros envíos. El consentimiento para mensajes por iniciativa de la tienda queda en HU-14.
+
+Riesgo aceptado: si la tienda apuntó mal un teléfono, el titular de ese número vería ese apartado. Mitigación parcial: si un mismo teléfono tiene clientes con nombres distintos, no se muestran datos.
+
+Discrepancias con la app (backend de solo lectura; registradas también en la [bitácora](../docs/ai-log/10-saldo-telegram.md)):
+
+1. `telefono` es texto libre y puede ser nulo (`612 345 001`, `612345002`, `600 000 001`). Haría falta guardarlo normalizado (E.164) al dar de alta.
+2. No hay filtro exacto por teléfono. `q` busca con `LIKE` en cliente, producto, teléfono e id, y no tolera diferencias de espacios. El flujo lee todos los activos y filtra; el coste crece con el número de apartados.
+3. No hay campo de canal ni de consentimiento (por ejemplo `telegram_user_id` y su fecha). También lo necesitan HU-14 y cualquier aviso proactivo.
+
+## Disparador
+
+Telegram Trigger `Recibir mensaje`, Trigger On: Message, credencial `PF · Telegram`. Telegram exige una URL HTTPS pública para el webhook y la instancia local no la tiene, así que la prueba real necesita un túnel y el flujo publicado (prueba manual opcional, ver Pruebas).
+
+En el laboratorio, `fixture_flow()` sustituye el disparador por un Webhook y el nodo `Entrada de prueba` entrega el mismo `Update`. Regla de diseño: solo `Clasificar mensaje` lee el `Update`; ningún nodo referencia `Recibir mensaje` por nombre. Los demás usan `$('Clasificar mensaje')`.
+
+## Entradas
+
+`Update` de Telegram con `message`:
+
+| Campo | Uso |
+| --- | --- |
+| `message.chat.id` | Destino de la respuesta |
+| `message.chat.type` | Solo `private` recibe datos |
+| `message.from.id` | Comparación con el contacto |
+| `message.text` | `/start`, `/saldo` o texto libre |
+| `message.contact.phone_number` | Teléfono a normalizar |
+| `message.contact.user_id` | Debe existir y ser igual a `from.id` |
+
+Ejemplo ficticio:
+
+```json
+{"update_id": 100001, "message": {"message_id": 7, "date": 1793088000,
+  "chat": {"id": 555000111, "type": "private"},
+  "from": {"id": 555000111, "is_bot": false, "first_name": "Prueba"},
+  "contact": {"phone_number": "34612345001", "first_name": "Prueba", "user_id": 555000111}}}
+```
+
+Lo que escribe el cliente es un dato no confiable: no se copia en ninguna respuesta ni en el aviso de PF-08.
+
+## Procesamiento y salidas
+
+1. `Clasificar mensaje` (Code) devuelve `{tipo, chat_id, telefono}`. `telefono` solo se rellena con `contacto_valido`. Reglas en orden:
+   1. `chat.type` distinto de `private` → `grupo`. No se evalúa nada más.
+   2. Hay `contact` y `contact.user_id` o `from.id` no es un entero, o no son iguales → `contacto_ajeno`. Un `user_id` ausente se rechaza igual; nunca se compara con `undefined`.
+   3. Contacto propio cuyo teléfono no se puede normalizar → `telefono_no_valido`.
+   4. Contacto propio con teléfono normalizado → `contacto_valido`.
+   5. Texto `/start` o `/saldo` (admite `@nombre_del_bot` detrás) → `inicio`.
+   6. Cualquier otro mensaje → `no_entendido`.
+2. `Leer configuración` (Postgres): `API_BASE_URL` y `CONTACTO_TIENDA` de `pf_config`, en una sola fila.
+3. `Decidir respuesta` (Switch por `$('Clasificar mensaje').first().json.tipo`): `grupo` va a `Enviar aviso de grupo`; `contacto_valido`, a `Consultar apartados activos`; el resto, a `Redactar respuesta`.
+4. `Consultar apartados activos` (HTTP Request): `GET {API_BASE_URL}/api/apartados?estado=activo`, sin `pagina`, credencial `PF · API tienda`. Settings: Retry On Fail desactivado (ver Errores); Always Output Data activado, para que una lista vacía llegue a `Filtrar por teléfono`; On Error: Continue (using error output).
+5. `Filtrar por teléfono` (Code): descarta los items sin `id` o con `estado` distinto de `activo` (vuelve a comprobar el filtro de la API), normaliza cada `telefono` con la misma función y se queda con los que coinciden con el contacto. Resultado:
+   - ninguno → `no_encontrado`;
+   - más de un nombre de `cliente`, comparando sin tildes, mayúsculas ni espacios sobrantes → `identidad_dudosa`;
+   - en otro caso → `saldo`, con los apartados en el orden de la API (por `fecha_limite`).
+6. `Redactar respuesta` (Code) produce `{chat_id, texto}`:
+   - Importes: el número de la API pasa a céntimos a partir de su texto, sin aritmética de coma flotante, y se muestra con coma y dos decimales (`79,90 €`).
+   - Fechas: de `AAAA-MM-DD` a `DD/MM/AAAA` por texto, sin `Date`.
+   - Si hoy, en Europe/Madrid, es posterior a `fecha_limite`, se avisa de que el plazo ha pasado y de que hable con la tienda. El flujo no vence nada.
+   - Si `talla` es nula, se omite.
+7. `Enviar respuesta` (Telegram, Send Message):
+   - Chat ID `{{ $json.chat_id }}` y Text `{{ $json.texto }}`.
+   - Sin Parse Mode (texto plano, para que los nombres de producto no se interpreten como formato).
+   - Append n8n Attribution desactivado.
+   - Reply Markup: Reply Keyboard con el botón `Consultar mi saldo` y Request Contact activado.
+8. `Enviar aviso de grupo` (Telegram): Chat ID de `Clasificar mensaje`, texto fijo, sin datos ni teclado. Telegram no admite botones de contacto en grupos.
+
+Textos. `{contacto}` es `CONTACTO_TIENDA` o, si falta, «la tienda»:
+
+| tipo | Respuesta |
+| --- | --- |
+| `inicio` | Hola. Para ver lo que te falta por pagar, pulsa «Consultar mi saldo» y comparte tu contacto. Solo usamos tu número para buscar tus apartados en esta consulta. |
+| `no_entendido` | No he entendido tu mensaje. Para consultar tu saldo, pulsa «Consultar mi saldo». Para cualquier otra cosa, habla con {contacto}. |
+| `contacto_ajeno` | Solo puedo consultar tu propio número. Pulsa «Consultar mi saldo» para compartir tu contacto. |
+| `telefono_no_valido`, `no_encontrado` | No encuentro apartados pendientes con tu número. Si crees que es un error, habla con {contacto}. |
+| `identidad_dudosa` | No puedo mostrarte estos datos por aquí. Habla con {contacto} y lo revisamos. |
+| `saldo` | Tus apartados pendientes: una línea por apartado con «{producto} (talla {talla}): te faltan {pendiente}. Fecha límite: {fecha_limite}.» y al final «Si tienes dudas, habla con {contacto}.» |
+| `grupo` | Por privacidad, las consultas de saldo solo se atienden en un chat privado con este bot. |
+| Fallo de API | Ahora mismo no puedo consultar tu saldo. Inténtalo más tarde o habla con {contacto}. |
+
+`telefono_no_valido` y `no_encontrado` comparten texto para no revelar si un número tiene apartados.
+
+Salidas: un mensaje en el mismo chat. Sin efectos persistentes en la app ni en `pf_registro`. Solo las ejecuciones con error quedan en el historial de n8n (ver Riesgos).
+
+## Normalización del teléfono
+
+Una sola función para el contacto de Telegram y para el `telefono` de cada apartado:
+
+1. Nulo o vacío: no válido.
+2. Solo se admiten dígitos, espacios, puntos, guiones, paréntesis y un `+` inicial; cualquier otro carácter lo hace no válido. Se quitan los separadores.
+3. Empieza por `+`: `+` y los dígitos.
+4. Empieza por `00`: `+` y los dígitos que siguen a `00`.
+5. 9 dígitos que empiezan por 6 o 7: `+34` y los dígitos.
+6. Otros 9 dígitos (por ejemplo un fijo `912…`) o menos de 9: no válido.
+7. Más de 9 dígitos sin `+` ni `00`: se toman como número con prefijo, `+` y los dígitos.
+
+Validación final: entre 8 y 15 dígitos tras el `+`, sin 0 inicial; si empieza por `+34`, exactamente 9 dígitos más. Lo que no la cumple no es válido.
+
+Un teléfono de Telegram no válido da `telefono_no_valido`, sin llamar a la API. Un `telefono` de la app no válido hace que ese apartado no coincida nunca; el cliente recibe la derivación a la tienda. La comparación es una igualdad exacta entre cadenas E.164.
+
+## Errores e idempotencia
+
+- API con error (401, 5xx o timeout): la salida de error de `Consultar apartados activos` lleva a `Avisar fallo al cliente` (Telegram, texto fijo), y de ahí a `Detener por fallo de API` (Stop and Error con el mensaje fijo «Fallo al consultar la API de la tienda», sin datos del cliente). La ejecución termina en error y salta PF-08.
+- Sin reintentos. Es una consulta interactiva: si falla, el cliente puede volver a pulsar el botón. Además, Retry On Fail no distingue códigos y repetiría un 401, en contra del acuerdo común de [specs/README.md](README.md) («`401`: configuración, sin reintento ciego»).
+- `API_BASE_URL` ausente: la petición falla y sigue el mismo camino de error.
+- Fallo de `Leer configuración` o de un envío a Telegram: la ejecución falla y salta PF-08; el cliente puede quedarse sin respuesta.
+- Duplicados: si Telegram reenvía un `update_id`, el cliente puede recibir la respuesta dos veces. Se acepta porque el flujo no escribe nada; no se reserva en `pf_registro`.
+- Concurrencia: cada mensaje es independiente y no hay estado compartido.
+- PF-08 (`Preparar aviso`): añadir `'PF-10': 'Saldo por Telegram'` a `workflowNames` y estos pasos a la lista: `Recibir mensaje`, `Clasificar mensaje`, `Decidir respuesta`, `Filtrar por teléfono`, `Redactar respuesta`, `Enviar respuesta`, `Enviar aviso de grupo`, `Avisar fallo al cliente`, `Detener por fallo de API`. `Leer configuración` y `Consultar apartados activos` ya están. La lista se vuelve a unir con la de `dev` al fusionar.
+
+## Credenciales y variables
+
+| Nombre | Tipo | Finalidad |
+| --- | --- | --- |
+| `PF · Telegram` | Telegram API | Token del bot de pruebas creado con BotFather. En el laboratorio, token ficticio y Base URL `http://simulador:8080`, si la prueba previa lo confirma (ver Pruebas). |
+| `PF · API tienda` | Header Auth | Cabecera `X-API-Key` |
+| `PF · Registro auxiliar` | Postgres | Lectura de `pf_config` |
+| `API_BASE_URL` | `pf_config` | Dirección de la API |
+| `CONTACTO_TIENDA` | `pf_config`, opcional | Texto de derivación (teléfono o dirección de la tienda). Sin valor por defecto; lo da Marisa. |
+
+Dependencia sin elegir: túnel HTTPS para la prueba manual (servicio externo; acordarlo con Fabiana).
+
+## Riesgos y datos personales
+
+- Historial de ejecuciones. Con `saveDataSuccessExecution: all`, como en PF-04, PF-05, PF-07, PF-08 y PF-09, cada consulta correcta guardaría el `Update` (teléfono, nombre de Telegram y `user_id`) y la respuesta completa de la API: los apartados activos de todos los clientes. Es el riesgo principal del flujo.
+- Decisión: PF-10 se exporta con `saveDataSuccessExecution: none` y `saveDataErrorExecution: all`, solo en este flujo. Las consultas correctas no dejan datos personales en n8n. Consecuencias:
+  - Las consultas correctas no dejan ID de ejecución. La evidencia de éxito sale del laboratorio, que instala una copia con `all`; F10-20 comprueba los `settings` exportados.
+  - `finished()` no ve esas ejecuciones.
+  - Las ejecuciones manuales desde el editor dependen de `saveManualExecutions`.
+- El historial de errores sigue guardando datos personales: siempre el teléfono del `Update`; la lista de apartados activos solo si el fallo ocurre después de la consulta (por ejemplo, en un envío a Telegram). Cuando falla la API, no hay lista.
+- Retención: ni [docker-compose.yml](../docker-compose.yml), ni [infra/automatizaciones.compose.yml](../infra/automatizaciones.compose.yml), ni [tests/n8n/compose.yml](../tests/n8n/compose.yml) definen `EXECUTIONS_DATA_PRUNE` ni `EXECUTIONS_DATA_MAX_AGE` (revisado el 28/10/2026). Se aplican los valores por defecto, comprobados en `@n8n/config` de la imagen instalada (n8n 2.45.4, en la instancia de Rita y en el laboratorio): poda activada (`pruneData = true`), 336 horas o 14 días (`pruneDataMaxAge`) y un máximo de 10 000 ejecuciones (`pruneDataMaxCount`); al superarlo, se borran las más antiguas aunque no hayan cumplido los 14 días. Cambiarlo afectaría a todos los flujos de la instancia y queda fuera de esta tarea.
+- Teléfono mal apuntado en la app: ver Ontología.
+- El bot es público: cualquiera puede escribirle, pero solo obtiene datos si comparte un número verificado por Telegram que coincide.
+- El simulador guarda los cuerpos enviados a Telegram. El token del laboratorio es ficticio y se enmascara en la ruta registrada.
+
+## Pruebas y aceptación
+
+Prueba previa, antes de escribir los Code nodes: un flujo mínimo en el laboratorio, con un Webhook seguido de un Telegram Send Message y la credencial con Base URL `http://simulador:8080`. Confirma que el nodo envía por HTTP a esa dirección y construye la ruta `/bot<token>/sendMessage`, y muestra en qué formato llegan `text` y `reply_markup`. Si falla, se pasa a la opción (a): leer el texto en la salida de `Redactar respuesta` con `execution_data` (posible porque el laboratorio instala una copia con `saveDataSuccessExecution: all`) y no enviar a Telegram en el laboratorio. En ese caso se ajusta esta spec antes de seguir.
+
+Laboratorio: `python3 tests/n8n/lab.py 08` y después `python3 tests/n8n/lab.py 10`. Cambios de soporte:
+
+- `tests/n8n/lab.py`: añadir `'telegramTrigger'` a la tupla de disparadores de `fixture_flow()`. Es una línea; la #36 también modifica este archivo.
+- `tests/n8n/simulador.py`: `POST /bot<token>/sendMessage` responde 200 como Telegram y guarda `{method, path con el token enmascarado, body}` en `/__calls`. Los demás POST siguen respondiendo 405.
+- `tests/n8n/test_10.py`: crea `PF · Telegram` en el laboratorio (token ficticio, Base URL `http://simulador:8080`), lo añade a `.estado/credentials.json` e instala PF-10 con `fixture_flow()` y PF-08 como Error Workflow. Durante la prueba, `API_BASE_URL` apunta al simulador; al terminar se restaura.
+
+La función de normalización y `Redactar respuesta` se prueban antes con Node contra estos mismos casos.
+
+Comprobaciones comunes a todos los casos:
+
+- Ningún POST a `/api/...`.
+- Cada respuesta llega a `sendMessage` con el `chat_id` del caso, sin `parse_mode` y sin texto de atribución de n8n.
+- En chats privados, `reply_markup` lleva un botón con `request_contact: true` (como objeto o como JSON en texto).
+
+Salvo que se indique otra cosa, el contacto es propio (`user_id` = `from.id`) y el chat, privado.
+
+| ID | Caso | Entrada y fixture | Resultado esperado |
+| --- | --- | --- | --- |
+| F10-01 | Un apartado activo | Contacto `34612345001`. Fixture: Carmen Ruiz `612 345 001` activo, pendiente 79.9, límite 2030-12-01; otro cliente `600 000 002` activo; otro cliente activo con `telefono` null; Carmen liquidado con el mismo teléfono | Un GET `/api/apartados` con `estado=activo`. Texto con «79,90 €» y «01/12/2030», sin aviso de plazo. No aparecen ni los otros clientes ni el liquidado. El `telefono` null no rompe `Filtrar por teléfono`: el apartado se descarta. |
+| F10-02 | Dos activos del mismo cliente | Dos activos de Carmen con su teléfono | Ambos, en el orden de la API |
+| F10-03 | Plazo pasado | Activo con límite 2026-01-15 | Fecha y aviso de hablar con la tienda; ningún POST |
+| F10-04 | Teléfono con dos nombres | Carmen Ruiz y Luis Ruiz con `612 345 001` | `identidad_dudosa`, sin cifras |
+| F10-05 | Sin apartados | Fixture vacío | `no_encontrado` (comprueba Always Output Data) |
+| F10-06 | Contacto ajeno | `contact.user_id` 555000999, `from.id` 555000111 | `contacto_ajeno`, ningún GET |
+| F10-07 | Contacto sin `user_id` | `contact` sin `user_id` | Igual que F10-06, ningún GET |
+| F10-08 | Chat de grupo | `chat.type` `group`, contacto propio válido | Texto de grupo, sin `reply_markup`, ningún GET |
+| F10-09 | Inicio | Texto `/start` | `inicio` con botón |
+| F10-10 | Texto libre | «hola, ¿cuánto debo?» | `no_entendido`, ningún GET |
+| F10-11 | Normalización con `+` | Telegram `+34612345001`; app `+34 612 345 001` | Coincide |
+| F10-12 | Sin `+`, con prefijo | Telegram `34612345001`; app `34612345001` | Coincide |
+| F10-13 | `00` inicial | Telegram `34612345001`; app `0034 612 345 001` | Coincide |
+| F10-14 | 9 dígitos que empiezan por 6 | Telegram `34612345001`; app `612345001` | Coincide |
+| F10-15 | 9 dígitos que empiezan por 7 | Telegram `34712345001`; app `712 345 001` | Coincide |
+| F10-16 | No encaja en la app | Telegram `34912345678`; app `912 345 678` | Sin coincidencia, `no_encontrado` |
+| F10-17 | No encaja en Telegram | Telegram `12345` | `telefono_no_valido`, ningún GET |
+| F10-18 | API 401 | `apartados_response` 401 | 1 GET, sin reintento; mensaje de fallo al cliente; ejecución en error en `Detener por fallo de API`; un correo de PF-08 en Mailpit sin el teléfono del caso |
+| F10-19 | API 500 | `apartados_response` 500 | Igual que F10-18 |
+| F10-20 | Privacidad del historial | Flujo con los `settings` exportados y la entrada de F10-01 | La respuesta llega al simulador y no se guarda ninguna ejecución correcta nueva |
+
+Los casos F10-01 a F10-19 se añaden a [contratos.json](../data/pruebas/contratos.json). Sus `expected` son expectativas, no resultados.
+
+- [ ] Solo se muestran apartados activos cuyo teléfono coincide exactamente con el contacto propio (F10-01, 02, 04, 06, 07, 11 a 17).
+- [ ] Saldo y fecha límite literales de la API (F10-01 a 03).
+- [ ] Si no entiende o no encuentra al cliente, lo dice y ofrece hablar con la tienda (F10-05, 09, 10, 16, 17).
+- [ ] En grupos no se muestran datos (F10-08).
+- [ ] Un fallo de la API avisa al cliente y salta PF-08 (F10-18, 19).
+- [ ] Ninguna escritura en la app.
+- [ ] Las consultas correctas no se guardan en el historial (F10-20).
+- [ ] Evidencia con IDs de ejecución en `docs/pruebas/10-saldo-telegram.md`.
+
+Prueba manual opcional, que no bloquea la entrega: bot de pruebas de BotFather, túnel HTTPS y PF-10 publicado por Rita en su instancia solo durante la prueba, con un apartado ficticio que lleva el número de Rita. En BotFather, `/setjoingroups` se pone en Disable para que nadie pueda añadir el bot a un grupo; el caso `grupo` (F10-08) queda como defensa de reserva. Ni el número ni el token se suben a Git ni aparecen en la evidencia. Si no se hace, se documenta como pendiente.
+
+## Decisiones pendientes y evidencias
+
+Decisiones de implementación · 27/10/2026. Las tomó Rita tras la revisión externa del plan:
+
+- Identidad: contacto propio compartido en cada consulta, sin guardar vínculo.
+- Disparador: Telegram Trigger; prueba real opcional con túnel.
+- Sin modelo de IA; solo apartados `activo`; normalización según la sección anterior; sin deduplicación.
+- Solo chats privados; un contacto sin `user_id` se rechaza.
+- Error de API: aviso genérico al cliente y Stop and Error para PF-08. Sin Retry On Fail en `Consultar apartados activos` (decidido el 28/10/2026), conforme a los acuerdos comunes.
+- Envío probado contra el simulador mediante la Base URL de la credencial (n8n 2.45.4), con el nodo Telegram activo. Depende de la prueba previa; si falla, opción (a).
+
+Añadidas el 28/10/2026, tras la revisión externa de la spec:
+
+- `saveDataSuccessExecution: none` y `saveDataErrorExecution: all` en PF-10 (ver Riesgos).
+- Fixture de F10-01 con límite lejano (2030-12-01) y un apartado activo con `telefono` null.
+- `/setjoingroups` desactivado en el bot de la prueba manual.
+- Entrega: PR hacia `dev` el miércoles 28/10 por la noche como muy tarde, para que Fabiana la revise antes del jueves 29/10 a las 23:59. Si el flujo no llega, la spec entra sola como PR documentada y el flujo queda pendiente.
+
+Pendientes:
+
+- Valor de `CONTACTO_TIENDA` (Marisa, a través de Rita).
+- Túnel para la prueba manual (Rita y Fabiana).
+- Orden de fusión: PF-10 fusiona `dev` después de que entre la #36; entonces se vuelven a unir `tests/n8n/lab.py` y la lista de `Preparar aviso`.
+
+Bitácora: [docs/ai-log/10-saldo-telegram.md](../docs/ai-log/10-saldo-telegram.md). Evidencias pendientes: pruebas `docs/pruebas/10-saldo-telegram.md`, JSON `workflows/10-saldo-telegram.json` y PR. Los enlaces se añaden cuando existan los archivos.
