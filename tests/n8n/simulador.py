@@ -1,10 +1,15 @@
 """Doble HTTP local de las fuentes de prueba; no es una API de producción."""
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
-from urllib.parse import urlsplit, parse_qs
+from urllib.parse import urlsplit, parse_qs, parse_qsl
 import json
+import re
 
 fixture={}
 calls=[]
+SEND_MESSAGE=re.compile(r'^/bot[^/]+/sendMessage$')
+def masked(path):
+    # El token de Telegram va en la ruta; nunca se guarda en /__calls.
+    return re.sub(r'^/bot[^/?]+','/bot<token>',path)
 class Handler(BaseHTTPRequestHandler):
     def log_message(self,*args): pass
     def reply(self,status,body,count=None):
@@ -13,15 +18,21 @@ class Handler(BaseHTTPRequestHandler):
         self.end_headers(); self.wfile.write(json.dumps(body).encode())
     def do_POST(self):
         global fixture,calls
-        body=json.loads(self.rfile.read(int(self.headers.get('Content-Length',0))) or b'{}')
+        raw=self.rfile.read(int(self.headers.get('Content-Length',0)))
+        tipo=self.headers.get('Content-Type','')
+        body=dict(parse_qsl(raw.decode())) if 'x-www-form-urlencoded' in tipo else json.loads(raw or b'{}')
         if self.path=='/__fixture':
             fixture=body;calls=[];return self.reply(200,{'ok':True})
-        calls.append({'method':'POST','path':self.path})
+        if SEND_MESSAGE.match(self.path):
+            # Doble de Telegram: se registran el cuerpo y su formato.
+            calls.append({'method':'POST','path':masked(self.path),'content_type':tipo,'body':body})
+            return self.reply(200,{'ok':True,'result':{'message_id':len(calls),'date':0,'chat':{'id':body.get('chat_id')},'text':body.get('text','')}})
+        calls.append({'method':'POST','path':masked(self.path)})
         self.reply(405,{'detail':'No se permiten escrituras de negocio en el simulador'})
     def do_GET(self):
         route=urlsplit(self.path)
         if route.path=='/__calls':return self.reply(200,calls)
-        calls.append({'method':'GET','path':route.path,'query':parse_qs(route.query)})
+        calls.append({'method':'GET','path':masked(route.path),'query':parse_qs(route.query)})
         key=route.path.rsplit('/',1)[-1]
         if key.isdigit():
             value=fixture.get('detalles',{}).get(key)
