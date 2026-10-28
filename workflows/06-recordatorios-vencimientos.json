@@ -1,0 +1,677 @@
+{
+  "name": "PF-06 · Recordatorios y vencimientos",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 9 * * *"
+            }
+          ]
+        }
+      },
+      "id": "3bdbb245-ea90-44a4-930c-9cf8b4bc3db9",
+      "name": "Programar revisión diaria",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.4,
+      "position": [
+        0,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "inputSource": "passthrough"
+      },
+      "id": "1346331b-f664-44de-bd3d-b030c5455dbf",
+      "name": "Recibir vencimiento de PF-00",
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1.3,
+      "position": [
+        224,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT COALESCE(jsonb_object_agg(clave,valor),'{}'::jsonb) AS config, $1::jsonb AS entrada FROM pf_config",
+        "options": {
+          "queryReplacement": "={{ [JSON.stringify($json)] }}"
+        }
+      },
+      "id": "28b057ef-9bfc-4bd4-b546-ff86e0ca91c2",
+      "name": "Leer configuración",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.7,
+      "position": [
+        448,
+        0
+      ],
+      "credentials": {
+        "postgres": {
+          "name": "PF · Registro auxiliar"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// ---------- Bloque 1: leer datos ----------\nconst { config: c, entrada } = $input.first().json;\nconst origen = entrada && entrada.body && entrada.body.evento === 'apartado.vencido'\n  ? 'evento' : 'calendario';\n\n// ---------- Bloque 2: fijar \"hoy\" una sola vez (Europe/Madrid, AAAA-MM-DD) ----------\n// hoy_prueba solo existe en datos fijados a mano en el Schedule Trigger: ese nodo no recibe entrada externa.\nconst esFecha = v => typeof v === 'string' && /^\\d{4}-\\d{2}-\\d{2}$/.test(v);\nconst hoy = (origen === 'calendario' && esFecha(entrada && entrada.hoy_prueba))\n  ? entrada.hoy_prueba\n  : new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/Madrid' }).format(new Date());\n\n// ---------- Bloque 3: comprobar ----------\nfor (const k of ['API_BASE_URL', 'CORREO_MARISA', 'CORREO_REMITENTE']) {\n  if (typeof c[k] !== 'string' || c[k].trim() === '') throw new Error(`Falta configuración: ${k}`);\n}\nif (origen === 'evento') {\n  const d = entrada.body.datos;\n  if (!d || typeof d.apartado !== 'object' || typeof d.vale !== 'object') {\n    throw new Error('Evento de vencimiento sin apartado o vale');\n  }\n}\n\nreturn [{ json: { config: c, origen, hoy, datos: origen === 'evento' ? entrada.body.datos : null } }];"
+      },
+      "id": "b1dfa0c3-9376-42ae-9e58-4cc249e22ea8",
+      "name": "Preparar contexto",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        672,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 4
+          },
+          "conditions": [
+            {
+              "id": "c5725ea8-44cd-445a-b5e9-c4c7923ca6e9",
+              "leftValue": "={{ $json.origen }}",
+              "rightValue": "=calendario",
+              "operator": {
+                "type": "string",
+                "operation": "equals",
+                "name": "filter.operator.equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "82d62029-c28e-4355-b747-8b0554ac889f",
+      "name": "¿Es calendario?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.4,
+      "position": [
+        896,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "url": "={{ $('Preparar contexto').first().json.config.API_BASE_URL + '/api/apartados?estado=activo' }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "options": {
+          "response": {
+            "response": {
+              "fullResponse": true,
+              "responseFormat": "json"
+            }
+          },
+          "timeout": 10000
+        }
+      },
+      "id": "ba28bfe0-7611-4dc9-b741-93c28c46a8c2",
+      "name": "Consultar apartados activos",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "retryOnFail": true,
+      "position": [
+        1120,
+        -144
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "name": "PF · API tienda"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// ---------- Bloque 1: leer datos ----------\nconst { hoy, config } = $('Preparar contexto').first().json;\nconst resp = $input.first().json;\nif (resp.statusCode !== 200 || !Array.isArray(resp.body)) {\n  throw new Error('La API no devolvió la lista de apartados activos');\n}\n\n// ---------- Bloque 2: días entre fechas de calendario (sin horas) ----------\nconst esFecha = v => typeof v === 'string' && /^\\d{4}-\\d{2}-\\d{2}$/.test(v);\nconst aUTC = f => { const [y, m, d] = f.split('-').map(Number); return Date.UTC(y, m - 1, d); };\nconst dias = (desde, hasta) => Math.round((aUTC(hasta) - aUTC(desde)) / 86400000);\n\n// ---------- Bloque 3: clasificar ----------\nconst salida = [];\nfor (const a of resp.body) {\n  if (a.estado !== 'activo') continue;\n  if (!Number.isInteger(a.id) || !esFecha(a.fecha_limite)) {\n    throw new Error('Apartado activo sin id o fecha límite válidos');\n  }\n  const restantes = dias(hoy, a.fecha_limite);\n  let accion = null, hito = null;\n  if (restantes < 0) accion = 'vencer';\n  else if (restantes === 7 || restantes === 1) { accion = 'recordatorio'; hito = restantes; }\n  if (accion) {\n    salida.push({ json: { accion, hito, dias_restantes: restantes, hoy, config, apartado: a } });\n  }\n}\nreturn salida;"
+      },
+      "id": "48de35af-2fce-4487-a5a2-97e86482c60e",
+      "name": "Clasificar apartados",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1312,
+        -144
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 4
+          },
+          "conditions": [
+            {
+              "id": "6b18a056-da13-4b2d-81e5-b4a09c1d8ff3",
+              "leftValue": "={{ $json.accion }}",
+              "rightValue": "recordatorio",
+              "operator": {
+                "type": "string",
+                "operation": "equals",
+                "name": "filter.operator.equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "e63f881b-2b92-4b24-a3ea-f54b34604c47",
+      "name": "¿Es recordatorio?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.4,
+      "position": [
+        1504,
+        -144
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// ---------- Bloque 1: ayudas de formato (solo presentación, sin cálculos) ----------\nconst euros = v => `${Number(v).toFixed(2).replace('.', ',')} €`;\nconst fechaEs = f => f.split('-').reverse().join('/');\nconst esTexto = v => typeof v === 'string' && v.trim() !== '';\n\n// ---------- Bloque 2: un documento por apartado ----------\nconst salida = [];\nfor (const it of $input.all()) {\n  const { apartado: a, hito, config: c } = it.json;\n\n  if (!esTexto(c.CORREO_REMITENTE) || !esTexto(c.CORREO_MARISA)) throw new Error('Falta configuración de correo');\n  if (!Number.isInteger(a.id) || !esTexto(a.cliente) || !esTexto(a.producto)) throw new Error('Faltan datos del apartado');\n  if (![7, 1].includes(hito)) throw new Error('Hito de recordatorio inesperado');\n  if (!Number.isFinite(a.abonado) || !Number.isFinite(a.pendiente)) throw new Error('Faltan datos financieros del apartado');\n\n  const cuando = hito === 7 ? 'dentro de 7 días' : 'mañana';\n  const talla = esTexto(a.talla) ? ` (talla ${a.talla})` : '';\n  const limite = fechaEs(a.fecha_limite);\n  const base = `${a.fecha_limite}:${hito}`;\n\n  if (esTexto(a.email)) {\n    salida.push({ json: {\n      clave: `${a.id}:${base}:email`,\n      tipo: 'recordatorio',\n      documento: {\n        remitente: c.CORREO_REMITENTE,\n        destinatario: a.email.trim(),\n        asunto: `Tu apartado de ${a.producto} vence ${cuando}`,\n        texto: `Hola ${a.cliente},\\n\\nTe recordamos que tu apartado de ${a.producto}${talla} vence ${cuando}, el ${limite}.\\n\\nHas abonado ${euros(a.abonado)} y te quedan ${euros(a.pendiente)} por pagar.\\n\\nPuedes completar el pago hasta el ${limite} incluido. Pasado ese día, el apartado vence y se genera un vale por lo abonado.\\n\\nZapatería Paso Firme`\n      }\n    } });\n  } else {\n    const tel = esTexto(a.telefono) ? ` Teléfono: ${a.telefono}.` : '';\n    salida.push({ json: {\n      clave: `${a.id}:${base}:marisa`,\n      tipo: 'recordatorio_sin_email',\n      documento: {\n        remitente: c.CORREO_REMITENTE,\n        destinatario: c.CORREO_MARISA,\n        asunto: `Apartado ${a.id} sin correo: recordatorio sin enviar`,\n        texto: `El apartado ${a.id} de ${a.cliente} (${a.producto}${talla}) vence ${cuando}, el ${limite}. Abonado: ${euros(a.abonado)}. Pendiente: ${euros(a.pendiente)}.\\n\\nNo tiene correo registrado, así que no se ha enviado el recordatorio al cliente. Avísale por otro medio.${tel}`\n      }\n    } });\n  }\n}\nreturn salida;"
+      },
+      "id": "2ce50407-3175-40e5-b307-28b648123da1",
+      "name": "Preparar recordatorio",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1664,
+        -320
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO pf_registro(clave,tipo,estado,ejecucion,documento) VALUES($1,$2,'reservado',$3,$4::jsonb) ON CONFLICT DO NOTHING RETURNING clave,documento",
+        "options": {
+          "queryReplacement": "={{ [$json.clave, $json.tipo, $execution.id, JSON.stringify($json.documento)] }}"
+        }
+      },
+      "id": "47063ab3-5437-46e8-8469-35b80074207a",
+      "name": "Reservar operación",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.7,
+      "position": [
+        1888,
+        -320
+      ],
+      "credentials": {
+        "postgres": {
+          "name": "PF · Registro auxiliar"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "   // Solo deja pasar si la reserva es nueva (trae clave y documento)\n   return $input.all().filter(i => typeof i.json.clave === 'string' && i.json.documento);"
+      },
+      "id": "217b6b08-1aa2-4eb1-ac2f-dca98ebc0b6b",
+      "name": "Comprobar reserva",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2128,
+        -320
+      ]
+    },
+    {
+      "parameters": {
+        "fromEmail": "={{ $json.documento.remitente }}",
+        "toEmail": "={{ $json.documento.destinatario }}",
+        "subject": "={{ $json.documento.asunto }}",
+        "emailFormat": "text",
+        "text": "={{ $json.documento.texto }}",
+        "options": {
+          "appendAttribution": false
+        }
+      },
+      "id": "7007f9a2-8de7-4b8b-9ed9-403888037f7e",
+      "name": "Enviar aviso",
+      "webhookId": "b24a17df-bd18-48b1-ae14-7c1ea2fd3cd8",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2.1,
+      "position": [
+        2320,
+        -320
+      ],
+      "credentials": {
+        "smtp": {
+          "name": "PF · Notificaciones"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE pf_registro SET estado='confirmado', actualizado=now() WHERE clave=$1 AND ejecucion=$2 AND estado='reservado' RETURNING clave,estado",
+        "options": {
+          "queryReplacement": "={{ [$(\"Reservar operación\").item.json.clave, $execution.id] }}"
+        }
+      },
+      "id": "5dc86aa8-a35a-4d69-aac5-be999dee503a",
+      "name": "Confirmar envío",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.7,
+      "position": [
+        2528,
+        -320
+      ],
+      "credentials": {
+        "postgres": {
+          "name": "PF · Registro auxiliar"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $('Preparar contexto').first().json.config.API_BASE_URL + '/api/apartados/' + $json.apartado.id + '/vencer' }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "options": {
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          },
+          "timeout": 10000
+        }
+      },
+      "id": "488fbbd9-d71c-493b-a8e7-e6051076ba64",
+      "name": "Vencer apartado",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "retryOnFail": false,
+      "position": [
+        1728,
+        -48
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "name": "PF · API tienda"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "url": "={{ $('Preparar contexto').first().json.config.API_BASE_URL + '/api/apartados/' + $('¿Es recordatorio?').item.json.apartado.id }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "options": {
+          "response": {
+            "response": {
+              "fullResponse": true
+            }
+          },
+          "timeout": 10000
+        }
+      },
+      "id": "c0285e56-a869-4cdf-a0b0-e3f2ca5a8c53",
+      "name": "Releer apartado",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "retryOnFail": true,
+      "position": [
+        1952,
+        -48
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "name": "PF · API tienda"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// ---------- Bloque 1: leer datos ----------\nconst { config } = $('Preparar contexto').first().json;\nconst salida = [];\n\nfor (const it of $input.all()) {\n  const r = it.json;\n  if (r.statusCode !== 200 || !r.body || typeof r.body !== 'object') {\n    throw new Error('No se pudo releer el apartado tras pedir su vencimiento');\n  }\n\n  // ---------- Bloque 2: decidir con lo que dice la API ----------\n  const { abonos, vale, ...apartado } = r.body;\n  if (apartado.estado === 'liquidado') continue;          // otro proceso lo liquidó: no se avisa\n  if (apartado.estado === 'activo') {\n    throw new Error(`El apartado ${apartado.id} sigue activo tras pedir su vencimiento`);\n  }\n  if (apartado.estado !== 'vencido' || !vale || typeof vale.codigo !== 'string' || !Number.isFinite(vale.importe)) {\n    throw new Error(`El apartado ${apartado.id} está vencido pero la API no devuelve un vale válido`);\n  }\n\n  // ---------- Bloque 3: salida normalizada (código e importe del vale tal cual los da la API) ----------\n  salida.push({ json: { config, apartado, vale } });\n}\nreturn salida;"
+      },
+      "id": "5410dfa9-2ef9-42fe-88ee-efeb7d3355e9",
+      "name": "Interpretar vencimiento",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2176,
+        -48
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// ---------- Bloque 1: ayudas (solo formato, sin cálculos) ----------\nconst euros = v => `${Number(v).toFixed(2).replace('.', ',')} €`;\nconst fechaEs = f => f.split('-').reverse().join('/');\nconst esTexto = v => typeof v === 'string' && v.trim() !== '';\n\n// ---------- Bloque 2: un par de avisos por vale ----------\nconst salida = [];\nfor (const it of $input.all()) {\n  // Calendario trae {config, apartado, vale}; el evento de PF-00 trae {config, datos: {apartado, vale}}\n  const c = it.json.config;\n  const { apartado: a, vale: v } = it.json.datos ?? it.json;\n\n  if (!esTexto(c.CORREO_REMITENTE) || !esTexto(c.CORREO_MARISA)) throw new Error('Falta configuración de correo');\n  if (!a || a.estado !== 'vencido') throw new Error('El apartado no consta como vencido');\n  if (!v || !esTexto(v.codigo) || !Number.isFinite(v.importe) || v.apartado_id !== a.id) {\n    throw new Error(`Vale ausente o incoherente para el apartado ${a.id}`);\n  }\n\n  const talla = esTexto(a.talla) ? `talla ${a.talla}` : 'talla no indicada';\n  const base = `vale:${v.codigo}`;\n\n  // Aviso al cliente (solo si tiene correo)\n  if (esTexto(a.email)) {\n    salida.push({ json: {\n      clave: `${base}:cliente`,\n      tipo: 'vencimiento_cliente',\n      documento: {\n        remitente: c.CORREO_REMITENTE,\n        destinatario: a.email.trim(),\n        asunto: `Tu apartado de ${a.producto} ha vencido: tienes un vale`,\n        texto: `Hola ${a.cliente},\\n\\nTu apartado de ${a.producto} (${talla}) venció el ${fechaEs(a.fecha_limite)} sin completarse el pago.\\n\\nHemos generado un vale de compra por lo que habías abonado:\\n\\nCódigo: ${v.codigo}\\nImporte: ${euros(v.importe)}\\n\\nPuedes usarlo en tu próxima compra en la tienda. No se devuelve en efectivo.\\n\\nZapatería Paso Firme`\n      }\n    } });\n  }\n\n  // Aviso a Marisa (siempre): liberar el par y, si falta correo, avisar al cliente por otro medio\n  const sinCorreo = esTexto(a.email) ? '' :\n    `\\n\\nEl cliente no tiene correo registrado: no se le ha enviado el aviso. Comunícale el vale por otro medio.${esTexto(a.telefono) ? ` Teléfono: ${a.telefono}.` : ''}`;\n  salida.push({ json: {\n    clave: `${base}:marisa`,\n    tipo: 'vencimiento_tienda',\n    documento: {\n      remitente: c.CORREO_REMITENTE,\n      destinatario: c.CORREO_MARISA,\n      asunto: `Apartado ${a.id} vencido: liberar ${a.producto} (${talla})`,\n      texto: `El apartado ${a.id} de ${a.cliente} ha vencido (fecha límite ${fechaEs(a.fecha_limite)}).\\n\\nPar a liberar: ${a.producto}, ${talla}.\\nVale generado por la app: ${v.codigo} por ${euros(v.importe)}.\\n\\nLa app no modifica el inventario: vuelve a poner el par a la venta.${sinCorreo}`\n    }\n  } });\n}\nreturn salida;"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2432,
+        96
+      ],
+      "id": "67b59f80-8d69-4bf9-8641-685e96bf6b4e",
+      "name": "Preparar avisos de vencimiento"
+    },
+    {
+      "parameters": {
+        "url": "={{ $('Preparar contexto').first().json.config.API_BASE_URL + '/api/vales' }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "options": {
+          "response": {
+            "response": {
+              "fullResponse": true
+            }
+          },
+          "timeout": 10000
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        1040,
+        -384
+      ],
+      "id": "f338e0fd-792f-45b4-ba69-2566f7de5ab1",
+      "name": "Consultar vales",
+      "retryOnFail": true,
+      "credentials": {
+        "httpHeaderAuth": {
+          "name": "PF · API tienda"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// ---------- Bloque 1: leer datos ----------\nconst { hoy } = $('Preparar contexto').first().json;\nconst resp = $input.first().json;\nif (resp.statusCode !== 200 || !Array.isArray(resp.body)) {\n  throw new Error('La API no devolvió la lista de vales');\n}\n\n// ---------- Bloque 2: ventana de 7 días de calendario (hoy incluido) ----------\nconst aUTC = f => { const [y, m, d] = f.split('-').map(Number); return Date.UTC(y, m - 1, d); };\nconst desde = new Date(aUTC(hoy) - 7 * 86400000).toISOString().slice(0, 10);\n\n// ---------- Bloque 3: un item por vale reciente ----------\nreturn resp.body\n  .filter(v => typeof v.fecha === 'string' && v.fecha >= desde && v.fecha <= hoy && Number.isInteger(v.apartado_id))\n  .map(v => ({ json: { vale: v } }));"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1264,
+        -384
+      ],
+      "id": "eee0be04-c97c-41a0-9d8f-135ed35b1111",
+      "name": "Filtrar vales recientes"
+    },
+    {
+      "parameters": {
+        "url": "={{ $('Preparar contexto').first().json.config.API_BASE_URL + '/api/apartados/' + $json.vale.apartado_id }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "options": {
+          "response": {
+            "response": {
+              "fullResponse": true
+            }
+          },
+          "timeout": 10000
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        1488,
+        -384
+      ],
+      "id": "5113a666-5b0d-4bd6-b55c-e967555de223",
+      "name": "Leer apartado del vale",
+      "retryOnFail": true,
+      "credentials": {
+        "httpHeaderAuth": {
+          "name": "PF · API tienda"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Recibir vencimiento de PF-00": {
+      "main": [
+        [
+          {
+            "node": "Leer configuración",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Leer configuración": {
+      "main": [
+        [
+          {
+            "node": "Preparar contexto",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Programar revisión diaria": {
+      "main": [
+        [
+          {
+            "node": "Leer configuración",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Preparar contexto": {
+      "main": [
+        [
+          {
+            "node": "¿Es calendario?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "¿Es calendario?": {
+      "main": [
+        [
+          {
+            "node": "Consultar apartados activos",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Consultar vales",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Preparar avisos de vencimiento",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Consultar apartados activos": {
+      "main": [
+        [
+          {
+            "node": "Clasificar apartados",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Clasificar apartados": {
+      "main": [
+        [
+          {
+            "node": "¿Es recordatorio?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "¿Es recordatorio?": {
+      "main": [
+        [
+          {
+            "node": "Preparar recordatorio",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Vencer apartado",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Reservar operación": {
+      "main": [
+        [
+          {
+            "node": "Comprobar reserva",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Comprobar reserva": {
+      "main": [
+        [
+          {
+            "node": "Enviar aviso",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Enviar aviso": {
+      "main": [
+        [
+          {
+            "node": "Confirmar envío",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Preparar recordatorio": {
+      "main": [
+        [
+          {
+            "node": "Reservar operación",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Vencer apartado": {
+      "main": [
+        [
+          {
+            "node": "Releer apartado",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Releer apartado": {
+      "main": [
+        [
+          {
+            "node": "Interpretar vencimiento",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Interpretar vencimiento": {
+      "main": [
+        [
+          {
+            "node": "Preparar avisos de vencimiento",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Preparar avisos de vencimiento": {
+      "main": [
+        [
+          {
+            "node": "Reservar operación",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Consultar vales": {
+      "main": [
+        [
+          {
+            "node": "Filtrar vales recientes",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Filtrar vales recientes": {
+      "main": [
+        [
+          {
+            "node": "Leer apartado del vale",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Leer apartado del vale": {
+      "main": [
+        [
+          {
+            "node": "Interpretar vencimiento",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "availableInMCP": true,
+    "timeSavedMode": "fixed",
+    "timezone": "Europe/Madrid",
+    "callerPolicy": "workflowsFromSameOwner"
+  },
+  "active": false,
+  "pinData": {}
+}
