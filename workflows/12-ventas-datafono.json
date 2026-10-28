@@ -1,0 +1,778 @@
+{
+  "name": "PF-12 · Ventas del datáfono",
+  "nodes": [
+    {
+      "name": "Cada noche",
+      "id": "2fcbfe2d-c06f-4355-8d5f-5effb6b452b9",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.3,
+      "position": [
+        0,
+        0
+      ],
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "1 0 * * *"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "Iniciar comprobación manual",
+      "id": "eb03fbcd-7658-4e6f-8403-559736672d8e",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        0,
+        180
+      ],
+      "parameters": {}
+    },
+    {
+      "name": "Leer configuración",
+      "id": "cd0e003e-e436-4836-bc44-a620e0b6e548",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.7,
+      "position": [
+        220,
+        0
+      ],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT coalesce(jsonb_object_agg(clave,valor),'{}'::jsonb) AS config FROM pf_config",
+        "options": {
+          "queryReplacement": "={{ [] }}"
+        }
+      },
+      "alwaysOutputData": true,
+      "credentials": {
+        "postgres": {
+          "name": "PF · Registro auxiliar"
+        }
+      }
+    },
+    {
+      "name": "Fijar día y fuente",
+      "id": "d419a0d6-0b82-4c12-a68f-afbc1079f06f",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        440,
+        0
+      ],
+      "parameters": {
+        "jsCode": "const {config}=$input.first().json;\nconst fecha=$now.setZone('Europe/Madrid').minus({days:1}).toISODate();\nfor(const k of ['API_BASE_URL','DATAFONO_CSV_URL','CORREO_MARISA','CORREO_REMITENTE'])\n  if(typeof config[k]!=='string'||!config[k].trim())throw new Error('Falta configuración de datáfono');\nconst url=config.DATAFONO_CSV_URL.replaceAll('{fecha}',fecha);\nfor(const value of [url,config.API_BASE_URL]){\n  // Configuración del operador, nunca una URL tomada del CSV.\n  if(!/^https?:\\/\\/[^\\s/@?#]+(?::\\d+)?(?:\\/[^\\s?#]*)?$/.test(value))throw new Error('URL de configuración no válida');\n}\nreturn [{json:{config,fecha,url}}];"
+      }
+    },
+    {
+      "name": "Descargar CSV del datáfono",
+      "id": "48d8488c-9db2-4af2-9332-69c69ded7e9c",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        660,
+        0
+      ],
+      "parameters": {
+        "url": "={{ $json.url }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "options": {
+          "timeout": 15000,
+          "redirect": {
+            "redirect": {
+              "followRedirects": false
+            }
+          },
+          "response": {
+            "response": {
+              "responseFormat": "text",
+              "outputPropertyName": "csv"
+            }
+          }
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 1000,
+      "credentials": {
+        "httpHeaderAuth": {
+          "name": "PF · Fuente datáfono"
+        }
+      }
+    },
+    {
+      "name": "Validar CSV del datáfono",
+      "id": "b393b060-2826-4af3-a63f-0eec559d23c5",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        880,
+        0
+      ],
+      "parameters": {
+        "jsCode": "const contexto=$('Fijar día y fuente').first().json;\nconst text=$input.first().json.csv;\nif(typeof text!=='string'||new TextEncoder().encode(text).length>1048576)throw new Error('CSV ausente o demasiado grande');\nfunction parseCSV(s){\n  s=s.replace(/^\\uFEFF/,'');\n  const rows=[];let row=[],field='',quoted=false,closed=false;\n  const finish=()=>{row.push(field);field='';closed=false;};\n  for(let i=0;i<s.length;i++){\n    const c=s[i];\n    if(quoted){if(c==='\"'){if(s[i+1]==='\"'){field+='\"';i++;}else{quoted=false;closed=true;}}else field+=c;continue;}\n    if(c==='\"'){if(field||closed)throw new Error('CSV con comillas inválidas');quoted=true;}\n    else if(c===';')finish();\n    else if(c==='\\r'||c==='\\n'){if(c==='\\r'&&s[i+1]==='\\n')i++;finish();rows.push(row);row=[];}\n    else {if(closed)throw new Error('CSV con texto tras comillas');field+=c;}\n  }\n  if(quoted)throw new Error('CSV con comillas sin cerrar');\n  if(field||closed||row.length){finish();rows.push(row);}\n  return rows;\n}\nconst rows=parseCSV(text);\nconst header=['terminal_id','operacion_id','fecha','tipo','concepto','importe','moneda','venta_id'];\nif(!rows.length||JSON.stringify(rows.shift())!==JSON.stringify(header))throw new Error('Cabecera CSV no válida');\nif(rows.length>2000||rows.some(r=>r.length!==header.length))throw new Error('Estructura o número de filas CSV no válido');\nconst incidencias=[],map=new Map(),conflictos=new Set();let duplicados=0;\nfor(let i=0;i<rows.length;i++){\n  const r=Object.fromEntries(header.map((k,n)=>[k,rows[i][n].trim()]));\n  const motivos=[];\n  if(!/^[A-Za-z0-9_-]{1,64}$/.test(r.terminal_id)||!/^[A-Za-z0-9_-]{1,64}$/.test(r.operacion_id))motivos.push('referencia inválida');\n  if(r.fecha!==contexto.fecha)motivos.push('fecha fuera del día procesado');\n  if(r.tipo!=='venta')motivos.push('no es una venta directa');\n  if(r.moneda!=='EUR')motivos.push('moneda distinta de EUR');\n  if(!/^\\d{1,9}(?:[.,]\\d{1,2})?$/.test(r.importe))motivos.push('importe inválido');\n  const partes=r.importe.split(/[.,]/);const centimos=Number(partes[0])*100+Number((partes[1]||'').padEnd(2,'0'));\n  if(!Number.isSafeInteger(centimos)||centimos<=0)motivos.push('importe no positivo');\n  const concepto=r.concepto.replace(/\\s+/g,' ').trim();\n  if(!concepto||concepto.length>160||/[\\x00-\\x1f\\x7f]/.test(concepto)||concepto.includes('[TPV:'))motivos.push('concepto inválido');\n  if(r.venta_id&&!/^[1-9]\\d{0,9}$/.test(r.venta_id))motivos.push('venta_id inválido');\n  const clave=`datafono:${r.terminal_id}:${r.operacion_id}`;\n  if(motivos.length){incidencias.push({fila:i+2,motivo:motivos.join('; ')});conflictos.add(clave);continue;}\n  const referencia=`[TPV:${r.terminal_id}:${r.operacion_id}]`;\n  const doc={referencia,concepto,centimos,payload:{fecha:r.fecha,concepto:`${referencia} ${concepto}`,importe:centimos/100,forma_pago:'tarjeta'}};\n  const op={clave,documento:doc,venta_id:r.venta_id?Number(r.venta_id):null,fila:i+2};\n  if(map.has(clave)){\n    const previo=map.get(clave);\n    if(JSON.stringify(previo.documento)!==JSON.stringify(doc)||previo.venta_id!==op.venta_id){conflictos.add(clave);incidencias.push({fila:i+2,motivo:'referencia repetida con datos distintos'});}\n    else duplicados++;\n  }else map.set(clave,op);\n}\nconst operaciones=[...map.values()].filter(o=>!conflictos.has(o.clave));\nreturn [{json:{...contexto,operaciones,incidencias,duplicados,filas:rows.length}}];"
+      }
+    },
+    {
+      "name": "Consultar ventas del día",
+      "id": "7ab63689-35e2-4fab-9b73-03c3407c0334",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        1100,
+        0
+      ],
+      "parameters": {
+        "url": "={{ $json.config.API_BASE_URL + '/api/ventas' }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "desde",
+              "value": "={{ $json.fecha }}"
+            },
+            {
+              "name": "hasta",
+              "value": "={{ $json.fecha }}"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 10000,
+          "response": {
+            "response": {
+              "responseFormat": "json",
+              "fullResponse": true
+            }
+          }
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 1000,
+      "credentials": {
+        "httpHeaderAuth": {
+          "name": "PF · API tienda"
+        }
+      }
+    },
+    {
+      "name": "Planificar ventas sin duplicados",
+      "id": "346786b8-32fd-44e0-ab10-badc2cfcf6bd",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1320,
+        0
+      ],
+      "parameters": {
+        "jsCode": "const lote=$('Validar CSV del datáfono').first().json;\nconst ventas=$input.first().json.body;\nif(!Array.isArray(ventas)||ventas.some(v=>!Number.isInteger(v.id)||!Number.isFinite(v.importe)||typeof v.concepto!=='string'||v.fecha!==lote.fecha))throw new Error('Respuesta de ventas no válida');\nconst plan=[],incidencias=[...lote.incidencias];\nconst normal=s=>s.normalize('NFKC').replace(/\\s+/g,' ').trim().toLowerCase();\nconst marcador=s=>/^\\[TPV:[A-Za-z0-9_-]{1,64}:[A-Za-z0-9_-]{1,64}\\](?: |$)/.test(s);\nfor(const op of lote.operaciones){\n  const d=op.documento;\n  const mismas=ventas.filter(v=>v.concepto===d.payload.concepto||v.concepto.startsWith(d.referencia+' ')||v.concepto===d.referencia);\n  let existente=null,motivo=null;\n  const compatible=v=>v.fecha===lote.fecha&&v.forma_pago==='tarjeta'&&Math.round(v.importe*100)===d.centimos;\n  if(mismas.length>1)motivo='más de una venta con la misma referencia';\n  else if(mismas.length===1){\n    if(!compatible(mismas[0])||mismas[0].concepto!==d.payload.concepto||op.venta_id&&op.venta_id!==mismas[0].id)motivo='referencia existente con datos distintos';\n    else existente=mismas[0].id;\n  }else if(op.venta_id){\n    const v=ventas.find(v=>v.id===op.venta_id);\n    if(!v||!compatible(v)||normal(v.concepto)!==normal(d.concepto))motivo='venta_id no corresponde con el cobro';\n    else existente=v.id;\n  }else if(ventas.some(v=>compatible(v)&&!marcador(v.concepto)))motivo='posible venta manual ya registrada: aportar venta_id o revisar';\n  if(motivo)incidencias.push({fila:op.fila,motivo});else plan.push({...op,existente});\n}\n// Dos referencias diferentes no pueden enlazarse a la misma venta manual.\nconst repetidos=new Set(plan.filter(o=>o.existente&&plan.filter(p=>p.existente===o.existente).length>1).map(o=>o.existente));\nfor(const o of plan.filter(o=>repetidos.has(o.existente)))incidencias.push({fila:o.fila,motivo:'dos operaciones enlazadas a la misma venta'});\nreturn [{json:{...lote,plan:plan.filter(o=>!repetidos.has(o.existente)),incidencias}}];"
+      }
+    },
+    {
+      "name": "¿Hay operaciones?",
+      "id": "5a8630d3-aa69-45bc-987f-a536e7f879e4",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1540,
+        0
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "b0879a07-af8b-4782-9a42-cfb93e40a328",
+              "leftValue": "={{ $json.plan.length>0 }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      }
+    },
+    {
+      "name": "Preparar operaciones",
+      "id": "0af736fc-67dd-4e1f-b256-3ff6fbd47a33",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1760,
+        160
+      ],
+      "parameters": {
+        "jsCode": "return $input.first().json.plan.map(op=>({json:op}));"
+      }
+    },
+    {
+      "name": "Recorrer operaciones",
+      "id": "30f35986-9ed1-4c28-a601-0558e0382a4d",
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [
+        1980,
+        160
+      ],
+      "parameters": {
+        "batchSize": 1,
+        "options": {}
+      }
+    },
+    {
+      "name": "Reservar operación",
+      "id": "e2fcacd5-db10-478c-bfd5-8738a364634a",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.7,
+      "position": [
+        2200,
+        240
+      ],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO pf_registro(clave,tipo,estado,ejecucion,documento) VALUES($1,'datafono',CASE WHEN $4::bigint IS NULL THEN 'reservado' ELSE 'confirmado' END,$2,$3::jsonb || jsonb_build_object('venta_id',$4::bigint)) ON CONFLICT DO NOTHING RETURNING clave,estado,documento",
+        "options": {
+          "queryReplacement": "={{ [$json.clave,$execution.id,JSON.stringify($json.documento),$json.existente] }}"
+        }
+      },
+      "alwaysOutputData": true,
+      "credentials": {
+        "postgres": {
+          "name": "PF · Registro auxiliar"
+        }
+      }
+    },
+    {
+      "name": "¿Crear venta?",
+      "id": "27a138af-8ecc-470d-aa9b-5e020077b3bc",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        2420,
+        240
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "c92f7e3c-e8a3-413d-b92c-d9a997d83c95",
+              "leftValue": "={{ $json.estado==='reservado' && typeof $json.clave==='string' }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      }
+    },
+    {
+      "name": "Crear venta en tienda",
+      "id": "ec3fd3a6-5bbb-40fc-943b-c6f286b4ab3d",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        2640,
+        160
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $('Fijar día y fuente').first().json.config.API_BASE_URL + '/api/ventas' }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.documento.payload) }}",
+        "options": {
+          "timeout": 10000
+        }
+      },
+      "onError": "continueErrorOutput",
+      "credentials": {
+        "httpHeaderAuth": {
+          "name": "PF · API tienda"
+        }
+      }
+    },
+    {
+      "name": "Validar venta creada",
+      "id": "d9d1d625-ed34-4a51-bd30-6dd779c79a50",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2860,
+        160
+      ],
+      "parameters": {
+        "jsCode": "const reserva=$('Reservar operación').item.json;\nconst v=$input.first().json,p=reserva.documento.payload;\nconst confirmada=Number.isInteger(v.id)&&v.id>0&&v.fecha===p.fecha&&v.forma_pago==='tarjeta'&&v.concepto===p.concepto&&Number.isFinite(v.importe)&&Math.round(v.importe*100)===Math.round(p.importe*100);\nreturn [{json:{clave:reserva.clave,confirmada,venta_id:confirmada?v.id:null}}];"
+      }
+    },
+    {
+      "name": "¿Venta confirmada?",
+      "id": "fdba3d4f-dddd-4577-97e6-4a9d5d108294",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        3080,
+        160
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "a372fb3f-bd57-4b80-9151-27834da001d2",
+              "leftValue": "={{ $json.confirmada===true }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      }
+    },
+    {
+      "name": "Confirmar operación",
+      "id": "2ba000c4-0a63-487a-ab47-f1763bb2b233",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.7,
+      "position": [
+        3300,
+        80
+      ],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE pf_registro SET estado='confirmado',documento=documento||jsonb_build_object('venta_id',$3::bigint),actualizado=now() WHERE clave=$1 AND ejecucion=$2 AND estado='reservado' RETURNING clave,estado",
+        "options": {
+          "queryReplacement": "={{ [$json.clave,$execution.id,$json.venta_id] }}"
+        }
+      },
+      "alwaysOutputData": true,
+      "credentials": {
+        "postgres": {
+          "name": "PF · Registro auxiliar"
+        }
+      }
+    },
+    {
+      "name": "Marcar revisión",
+      "id": "8c9f6ff0-6c40-4131-8bbe-9e6c6a9aa9e9",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.7,
+      "position": [
+        3300,
+        340
+      ],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE pf_registro SET estado='revision',documento=documento||jsonb_build_object('motivo','respuesta_no_confirmada'),actualizado=now() WHERE clave=$1 AND ejecucion=$2 AND estado='reservado' RETURNING clave,estado",
+        "options": {
+          "queryReplacement": "={{ [$('Reservar operación').item.json.clave,$execution.id] }}"
+        }
+      },
+      "alwaysOutputData": true,
+      "credentials": {
+        "postgres": {
+          "name": "PF · Registro auxiliar"
+        }
+      }
+    },
+    {
+      "name": "Conciliar venta existente",
+      "id": "aeb0e1b7-373f-474a-9ce6-b930822be731",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.7,
+      "position": [
+        2640,
+        520
+      ],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE pf_registro SET estado='confirmado',documento=documento||jsonb_build_object('venta_id',$3::bigint),actualizado=now() WHERE clave=$1 AND documento->'payload'=$2::jsonb AND $3::bigint IS NOT NULL AND estado IN ('reservado','revision') RETURNING clave,estado",
+        "options": {
+          "queryReplacement": "={{ [$('Recorrer operaciones').item.json.clave,JSON.stringify($('Recorrer operaciones').item.json.documento.payload),$('Recorrer operaciones').item.json.existente] }}"
+        }
+      },
+      "alwaysOutputData": true,
+      "credentials": {
+        "postgres": {
+          "name": "PF · Registro auxiliar"
+        }
+      }
+    },
+    {
+      "name": "Consultar resultado del lote",
+      "id": "a3aad73d-fc5c-4593-a37d-369dd353f47a",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.7,
+      "position": [
+        2200,
+        -180
+      ],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT coalesce(jsonb_agg(jsonb_build_object('clave',p.value->>'clave','estado',r.estado,'ejecucion',r.ejecucion,'documento',r.documento)),'[]'::jsonb) AS registros FROM jsonb_array_elements($1::jsonb) p LEFT JOIN pf_registro r ON r.clave=p.value->>'clave'",
+        "options": {
+          "queryReplacement": "={{ [JSON.stringify($('Planificar ventas sin duplicados').first().json.plan)] }}"
+        }
+      },
+      "alwaysOutputData": true,
+      "credentials": {
+        "postgres": {
+          "name": "PF · Registro auxiliar"
+        }
+      }
+    },
+    {
+      "name": "Redactar resultado del datáfono",
+      "id": "00200d7e-6c50-400c-96e7-df72be6dc978",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2420,
+        -180
+      ],
+      "parameters": {
+        "jsCode": "const lote=$('Planificar ventas sin duplicados').first().json;\nconst registros=$input.first().json.registros;\nconst incidencias=[...lote.incidencias];let nuevas=0,existentes=0;\nfor(const op of lote.plan){\n  const r=registros.find(r=>r.clave===op.clave);\n  const mismo=r?.documento?.payload&&['concepto','fecha','importe','forma_pago'].every(k=>r.documento.payload[k]===op.documento.payload[k]);\n  if(!mismo)incidencias.push({fila:op.fila,motivo:'referencia reservada con otros datos; no se vuelve a importar'});\n  else if(r.estado==='confirmado'){if(r.ejecucion===$execution.id&&!op.existente)nuevas++;else existentes++;}\n  else incidencias.push({fila:op.fila,motivo:'operación sin confirmación: conciliar en la API antes de cualquier reintento'});\n}\nconst resumen={fecha:lote.fecha,filas:lote.filas,nuevas,existentes,duplicados:lote.duplicados,revision:incidencias.length};\nconst texto=[`Cobros del datáfono · ${lote.fecha}`,`Ventas nuevas: ${nuevas}`,`Ya registradas: ${existentes}`,`Filas duplicadas del CSV: ${lote.duplicados}`,`Incidencias: ${incidencias.length}`,...incidencias.map(r=>`Fila ${r.fila}: ${r.motivo}`),'','No se importan abonos de apartados ni devoluciones. Si hubo una corrección tardía, revisar el cierre de caja.'].join('\\n');\nreturn [{json:{resumen,incidencias,documento:{destinatario:lote.config.CORREO_MARISA,remitente:lote.config.CORREO_REMITENTE,asunto:`Paso Firme · Datáfono ${lote.fecha}: ${nuevas} nuevas, ${incidencias.length} por revisar`,texto}}}];"
+      }
+    },
+    {
+      "name": "Enviar informe",
+      "id": "0e46f90c-8690-49df-913d-6f41bb672f6c",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2.1,
+      "position": [
+        2640,
+        -180
+      ],
+      "parameters": {
+        "fromEmail": "={{ $json.documento.remitente }}",
+        "toEmail": "={{ $json.documento.destinatario }}",
+        "subject": "={{ $json.documento.asunto }}",
+        "emailFormat": "text",
+        "text": "={{ $json.documento.texto }}",
+        "options": {
+          "appendAttribution": false
+        }
+      },
+      "credentials": {
+        "smtp": {
+          "name": "PF · Notificaciones"
+        }
+      },
+      "webhookId": "600343a4-65f5-4292-8c13-0e4d119a5ead"
+    }
+  ],
+  "connections": {
+    "Cada noche": {
+      "main": [
+        [
+          {
+            "node": "Leer configuración",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Iniciar comprobación manual": {
+      "main": [
+        [
+          {
+            "node": "Leer configuración",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Leer configuración": {
+      "main": [
+        [
+          {
+            "node": "Fijar día y fuente",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fijar día y fuente": {
+      "main": [
+        [
+          {
+            "node": "Descargar CSV del datáfono",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Descargar CSV del datáfono": {
+      "main": [
+        [
+          {
+            "node": "Validar CSV del datáfono",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validar CSV del datáfono": {
+      "main": [
+        [
+          {
+            "node": "Consultar ventas del día",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Consultar ventas del día": {
+      "main": [
+        [
+          {
+            "node": "Planificar ventas sin duplicados",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Planificar ventas sin duplicados": {
+      "main": [
+        [
+          {
+            "node": "¿Hay operaciones?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "¿Hay operaciones?": {
+      "main": [
+        [
+          {
+            "node": "Preparar operaciones",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Consultar resultado del lote",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Preparar operaciones": {
+      "main": [
+        [
+          {
+            "node": "Recorrer operaciones",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Recorrer operaciones": {
+      "main": [
+        [
+          {
+            "node": "Consultar resultado del lote",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Reservar operación",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Reservar operación": {
+      "main": [
+        [
+          {
+            "node": "¿Crear venta?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "¿Crear venta?": {
+      "main": [
+        [
+          {
+            "node": "Crear venta en tienda",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Conciliar venta existente",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Crear venta en tienda": {
+      "main": [
+        [
+          {
+            "node": "Validar venta creada",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Marcar revisión",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validar venta creada": {
+      "main": [
+        [
+          {
+            "node": "¿Venta confirmada?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "¿Venta confirmada?": {
+      "main": [
+        [
+          {
+            "node": "Confirmar operación",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Marcar revisión",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Confirmar operación": {
+      "main": [
+        [
+          {
+            "node": "Recorrer operaciones",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Marcar revisión": {
+      "main": [
+        [
+          {
+            "node": "Recorrer operaciones",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Conciliar venta existente": {
+      "main": [
+        [
+          {
+            "node": "Recorrer operaciones",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Consultar resultado del lote": {
+      "main": [
+        [
+          {
+            "node": "Redactar resultado del datáfono",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Redactar resultado del datáfono": {
+      "main": [
+        [
+          {
+            "node": "Enviar informe",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "timezone": "Europe/Madrid"
+  },
+  "active": false,
+  "pinData": {}
+}

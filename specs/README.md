@@ -14,8 +14,9 @@ Estado inicial: **propuestas pendientes de revisión e implementación**. Escrib
 | PF-07 | [Informe mensual](07-informe-mensual.md) | Medio · HU-08 |
 | PF-08 | [Avisos de error](08-errores.md) | Esencial · HU-05 |
 | PF-09 | [Migración](09-migracion.md) | Medio · HU-10 |
+| PF-12 | [Ventas del datáfono](12-ventas-datafono.md) | Avanzado · HU-13 · opción CSV elegida por Fabiana |
 
-Usar [la plantilla](_plantilla.md) para nuevos flujos. Los niveles Avanzado/Experto quedan en backlog y requieren specs antes de empezar. Mantener el número de flujo del enunciado; PF-00 y PF-09 son convenciones adicionales del equipo.
+Usar [la plantilla](_plantilla.md) para nuevos flujos. Las tareas Avanzado/Experto requieren specs antes de empezar. PF-10 corresponde a HU-11 de Rita según la daily del 28/10; PF-11 queda reservado para HU-12. PF-12 implementa la opción CSV de HU-13. La numeración adicional es una convención del equipo.
 
 ## Acuerdos comunes
 

@@ -6,6 +6,8 @@ PF-00 será el único workflow publicado que reciba `POST tienda`. El Webhook in
 
 ## Importar en el editor
 
+Para HU-13/PF-12, seguir además [la configuración de la fuente CSV y del registro de datáfono](../docs/12-ventas-datafono.md). La fuente CSV tiene una credencial Header Auth propia, distinta de la API de la tienda.
+
 1. Leer la spec y los requisitos de credenciales del flujo.
 2. Abrir n8n local, crear un workflow y elegir en el menú del workflow **Import from File**. Seleccionar el JSON de esta carpeta.
 3. Mantenerlo sin publicar. Revisar los nodos y seleccionar las credenciales **de tu propia instancia**. Los IDs de credenciales de otro equipo no garantizan una conexión válida.

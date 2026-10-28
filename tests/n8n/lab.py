@@ -51,19 +51,25 @@ def install(path, error_id=None):
     creds=json.loads((STATE/'credentials.json').read_text())
     for node in flow['nodes']:
         for kind,reference in node.get('credentials',{}).items():
-            selected=creds.get(reference['name'],creds.get(kind))
+            fallback=creds.get(kind)
+            selected=creds.get(reference['name']) or (fallback if fallback and fallback['name']==reference['name'] else None)
             if selected: node['credentials'][kind]=selected
     if error_id: flow['settings']['errorWorkflow']=error_id
     flow.pop('id',None)
     return request('/rest/workflows',flow)['data']
 
 def export(flow_id,path):
+    declared=json.loads(Path(path).read_text()) if Path(path).exists() else {}
+    names={(node['name'],kind):cred['name'] for node in declared.get('nodes',[]) for kind,cred in node.get('credentials',{}).items()}
     flow=request('/rest/workflows/'+flow_id)['data']
     clean={k:flow[k] for k in ('name','nodes','connections','settings')}
     clean.update(active=False,pinData={})
     clean['settings'].pop('errorWorkflow',None)
     for node in clean['nodes']:
-        for cred in node.get('credentials',{}).values(): cred.pop('id',None)
+        for kind,cred in node.get('credentials',{}).items():
+            cred.pop('id',None)
+            # Mantener los nombres compartidos aunque n8n seleccione una credencial local.
+            if (node['name'],kind) in names:cred['name']=names[(node['name'],kind)]
     Path(path).write_text(json.dumps(clean,ensure_ascii=False,indent=2)+'\n')
 
 def sql(query):
