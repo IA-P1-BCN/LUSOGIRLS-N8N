@@ -1,0 +1,55 @@
+flowchart TB
+  A([Cliente elige un par y paga el inicial]) --> B[Dependienta registra el apartado en la app]
+  B --> C[API valida precio y abono inicial<br/>5 EUR mínimo; no superar precio]
+  C --> D[API guarda apartado y abono inicial<br/>Calcula saldo y límite: alta + 90 días]
+  D --> E[Evento apartado.creado → PF-00 → PF-01<br/>Confirmación con saldos y plazo de la API]
+  D --> F{¿Saldo cero?}
+  F -->|Sí| Z[API: liquidado<br/>Cliente puede recoger; entrega física en tienda]
+  F -->|No| G[Apartado activo: pendiente según la API]
+
+  subgraph Pagos[Abonos posteriores]
+    H[Dependienta registra pago en la app]
+    I[PF-03: correo bancario + extracción IA<br/>Solo un candidato claro y pago válido<br/>En revisión: PR 36]
+    H --> J[POST de abono por API<br/>Positivo, dentro del saldo, activo y en plazo]
+    I --> J
+    J --> K[API actualiza saldo y estado<br/>Evento abono.registrado → PF-00 → PF-02]
+    K --> L[Recibo; si liquidado, aviso de recogida]
+  end
+  G --> H
+  G --> I
+  L --> F
+
+  subgraph Plazos[Revisión diaria: PF-06 · 09:00 Europe/Madrid]
+    M[Consultar apartados activos por API] --> N{¿Días hasta el límite?}
+    N -->|7 o 1| O[Recordatorio con pendiente y fecha<br/>Una reserva persistente por hito]
+    N -->|0 u otros positivos| P[No vencer; esperar próxima revisión]
+    N -->|Negativos| Q[POST vencer por API sin reintento ciego<br/>Releer estado y vale]
+    Q --> R{¿Vencimiento confirmado?}
+    R -->|Sí| S[API: vencido y vale por lo abonado<br/>Evento apartado.vencido → PF-00 → PF-06]
+    R -->|No| T[Respetar estado actual<br/>Conciliar o avisar de incidencia]
+    S --> U[PF-06: vale al cliente; aviso a Marisa<br/>Marisa libera el par físicamente]
+  end
+  G -.-> M
+  U --> V([Fin del apartado vencido])
+  Z --> W([Fin del apartado liquidado])
+
+  subgraph Soporte[Controles y procesos comunes]
+    X[Sin email: avisar a Marisa<br/>Error técnico: PF-08 avisa sin secretos]
+    Y[PF-05: cierre diario · PF-07: informe mensual<br/>Ventas directas + abonos, incluidos iniciales<br/>Sin sumar de nuevo el precio del apartado]
+  end
+  E -.-> X
+  L -.-> X
+  U -.-> X
+  D -.-> Y
+  K -.-> Y
+
+  classDef humano fill:#fff3d6,stroke:#986600,color:#312700;
+  classDef app fill:#e2edff,stroke:#315fa5,color:#172b4d;
+  classDef n8n fill:#e0f4ef,stroke:#26745f,color:#173e34;
+  classDef revision fill:#fff3d6,stroke:#986600,color:#312700,stroke-dasharray:5 3;
+  classDef decision fill:#fff,stroke:#475569,color:#172033;
+  class A,B,H humano;
+  class C,D,J,Z app;
+  class E,K,L,M,O,P,Q,S,T,U,X,Y n8n;
+  class I revision;
+  class F,N,R decision;
