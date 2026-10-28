@@ -83,7 +83,7 @@ Lo que escribe el cliente es un dato no confiable: no se copia en ninguna respue
      ```
 
 3. `Decidir respuesta` (Switch por `$('Clasificar mensaje').first().json.tipo`): `grupo` va a `Enviar aviso de grupo`; `contacto_valido`, a `Consultar apartados activos`; el resto, a `Redactar respuesta`.
-4. `Consultar apartados activos` (HTTP Request): `GET {API_BASE_URL}/api/apartados?estado=activo`, sin `pagina`, credencial `PF · API tienda`. Settings: Retry On Fail desactivado (ver Errores); Always Output Data activado, para que una lista vacía llegue a `Filtrar por teléfono`; On Error: Continue (using error output).
+4. `Consultar apartados activos` (HTTP Request): `GET {API_BASE_URL}/api/apartados?estado=activo`, sin `pagina` ni `por_pagina`, credencial `PF · API tienda`. Sin `pagina`, la API devuelve todos los activos: el `LIMIT` solo se añade cuando llega `pagina` ([controllers/apartados.py](../backend/controllers/apartados.py), [models/apartado.py](../backend/models/apartado.py)), y entonces devuelve 25 por página. Con `pagina`, un cliente cuyos apartados quedaran fuera de esa página recibiría un saldo incompleto, que es peor que no encontrarlo. No se compara con `X-Total-Count`: el SQL ya garantiza la lista completa y leer la cabecera obligaría a cambiar la forma de la salida del nodo. Settings: Retry On Fail desactivado (ver Errores); Always Output Data activado, para que una lista vacía llegue a `Filtrar por teléfono`; On Error: Continue (using error output).
 5. `Filtrar por teléfono` (Code): descarta los items sin `id` o con `estado` distinto de `activo` (vuelve a comprobar el filtro de la API), normaliza cada `telefono` con la misma función y se queda con los que coinciden con el contacto. Resultado:
    - ninguno → `no_encontrado`;
    - más de un nombre de `cliente`, comparando sin tildes, mayúsculas ni espacios sobrantes → `identidad_dudosa`;
@@ -92,6 +92,7 @@ Lo que escribe el cliente es un dato no confiable: no se copia en ninguna respue
    - Importes: el número de la API pasa a céntimos a partir de su texto, sin aritmética de coma flotante, y se muestra con coma y dos decimales (`79,90 €`).
    - Fechas: de `AAAA-MM-DD` a `DD/MM/AAAA` por texto, sin `Date`.
    - Si hoy, en Europe/Madrid, es posterior a `fecha_limite`, se avisa de que el plazo ha pasado y de que hable con la tienda. El flujo no vence nada.
+   - El aviso es cierto aunque PF-06 aún no haya vencido el apartado (por ejemplo, entre las 00:00 y las 9:00): la app rechaza los abonos fuera de plazo ([invariante 3](../docs/ontologia.md), [models/abono.py](../backend/models/abono.py)), así que el cliente ya no puede pagar ese apartado.
    - Si `talla` es nula, se omite.
    - Escape HTML con una única función, con expresiones regulares globales y en este orden, para no escapar dos veces el `&` de `&lt;`:
 
@@ -159,6 +160,7 @@ Un teléfono de Telegram no válido da `telefono_no_valido`, sin llamar a la API
 - Sin reintentos. Es una consulta interactiva: si falla, el cliente puede volver a pulsar el botón. Además, Retry On Fail no distingue códigos y repetiría un 401, en contra del acuerdo común de [specs/README.md](README.md) («`401`: configuración, sin reintento ciego»).
 - `API_BASE_URL` ausente: la petición falla y sigue el mismo camino de error.
 - Fallo de un envío a Telegram: la ejecución falla y salta PF-08; el cliente se queda sin respuesta.
+- Límite conocido: si un dato de la app no es válido (un `pendiente` que no cumple `/^\d+(\.\d{1,2})?$/`, una `fecha_limite` que no es `AAAA-MM-DD`, o un `producto` nulo o vacío), el cliente recibe la derivación a la tienda, pero no se avisa a la tienda ni a PF-08. La ejecución termina bien y, con `saveDataSuccessExecution: none`, no queda registro de ella.
 - Duplicados: si Telegram reenvía un `update_id`, el cliente puede recibir la respuesta dos veces. Se acepta porque el flujo no escribe nada; no se reserva en `pf_registro`.
 - Concurrencia: cada mensaje es independiente y no hay estado compartido.
 - PF-08 (`Preparar aviso`): añadir `'PF-10': 'Saldo por Telegram'` a `workflowNames` y estos pasos a la lista: `Recibir mensaje`, `Clasificar mensaje`, `Decidir respuesta`, `Filtrar por teléfono`, `Redactar respuesta`, `Enviar respuesta`, `Enviar aviso de grupo`, `Redactar aviso de fallo`, `Avisar fallo al cliente`, `Detener por fallo de consulta`. `Leer configuración` y `Consultar apartados activos` ya están. La lista se vuelve a unir con la de `dev` al fusionar.
@@ -221,7 +223,7 @@ Salvo que se indique otra cosa, el contacto es propio (`user_id` = `from.id`) y 
 
 | ID | Caso | Entrada y fixture | Resultado esperado |
 | --- | --- | --- | --- |
-| F10-01 | Un apartado activo | Contacto `34612345001`. Fixture: Carmen Ruiz `612 345 001` activo, pendiente 79.9, límite 2030-12-01; otro cliente `600 000 002` activo; otro cliente activo con `telefono` null; Carmen liquidado con el mismo teléfono | Un GET `/api/apartados` con `estado=activo`. Texto con «79,90 €» y «01/12/2030», sin aviso de plazo. No aparecen ni los otros clientes ni el liquidado. El `telefono` null no rompe `Filtrar por teléfono`: el apartado se descarta. |
+| F10-01 | Un apartado activo | Contacto `34612345001`. Fixture: Carmen Ruiz `612 345 001` activo, pendiente 79.9, límite 2030-12-01; otro cliente `600 000 002` activo; otro cliente activo con `telefono` null; Carmen liquidado con el mismo teléfono | Un GET `/api/apartados` cuya query en `/__calls` es exactamente `{'estado': ['activo']}`, sin más parámetros (un `pagina` añadido más adelante hace fallar el caso). Texto con «79,90 €» y «01/12/2030», sin aviso de plazo. No aparecen ni los otros clientes ni el liquidado. El `telefono` null no rompe `Filtrar por teléfono`: el apartado se descarta. |
 | F10-02 | Dos activos del mismo cliente y escape HTML | Dos activos de Carmen con su teléfono; uno se llama `Sandalia <verano> & playa` | Ambos, en el orden de la API; el producto llega como `Sandalia &lt;verano&gt; &amp; playa`; el texto no contiene `&amp;lt;` (doble escape) |
 | F10-03 | Plazo pasado | Activo con límite 2026-01-15 | Fecha y aviso de hablar con la tienda; ningún POST |
 | F10-04 | Teléfono con dos nombres | Carmen Ruiz y Luis Ruiz con `612 345 001` | `identidad_dudosa`, sin cifras |
