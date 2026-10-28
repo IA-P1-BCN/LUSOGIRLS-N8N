@@ -313,7 +313,7 @@
         "estado": "liquidado",
         "pendiente": 0.0
       },
-      "blocked_by": "Acordar la representacion de transferencia en la API; no ejecutar el POST hasta resolverlo."
+      "decision": "Fabiana autoriza transferencia como medio propio el 22/10/2026. Se conserva el resultado esperado original."
     },
     {
       "id": "F03-04",

@@ -43,6 +43,10 @@ def prepare_credentials():
         found=next((c for c in existing if c['name']==name and c['type']==kind),None)
         if found is None: found=request('/rest/credentials',{'name':name,'type':kind,'data':data})['data']
         result[kind]={'id':found['id'],'name':name}
+    result.pop('PF · Modelo extracción',None)
+    for credential in existing:
+        if credential['name']=='PF · Modelo extracción' and credential['type']=='openRouterApi':
+            result[credential['name']]={'id':credential['id'],'name':credential['name']}
     (STATE/'credentials.json').write_text(json.dumps(result))
     return result
 
@@ -51,19 +55,25 @@ def install(path, error_id=None):
     creds=json.loads((STATE/'credentials.json').read_text())
     for node in flow['nodes']:
         for kind,reference in node.get('credentials',{}).items():
-            selected=creds.get(reference['name'],creds.get(kind))
+            fallback=creds.get(kind)
+            selected=creds.get(reference['name']) or (fallback if fallback and fallback['name']==reference['name'] else None)
             if selected: node['credentials'][kind]=selected
     if error_id: flow['settings']['errorWorkflow']=error_id
     flow.pop('id',None)
     return request('/rest/workflows',flow)['data']
 
 def export(flow_id,path):
+    declared=json.loads(Path(path).read_text()) if Path(path).exists() else {}
+    names={(node['name'],kind):cred['name'] for node in declared.get('nodes',[]) for kind,cred in node.get('credentials',{}).items()}
     flow=request('/rest/workflows/'+flow_id)['data']
     clean={k:flow[k] for k in ('name','nodes','connections','settings')}
     clean.update(active=False,pinData={})
     clean['settings'].pop('errorWorkflow',None)
     for node in clean['nodes']:
-        for cred in node.get('credentials',{}).values(): cred.pop('id',None)
+        for kind,cred in node.get('credentials',{}).items():
+            cred.pop('id',None)
+            # Mantener los nombres compartidos aunque n8n seleccione una credencial local.
+            if (node['name'],kind) in names:cred['name']=names[(node['name'],kind)]
     Path(path).write_text(json.dumps(clean,ensure_ascii=False,indent=2)+'\n')
 
 def sql(query):
@@ -71,9 +81,17 @@ def sql(query):
     result=subprocess.run(command,check=True,capture_output=True,text=True)
     return result.stdout.strip()
 
-def fixture_flow(path,error_id=None,clock=None):
+def fixture_flow(path,error_id=None,clock=None,model_mock=False):
     from test_08 import webhook, activate
     flow=json.loads(Path(path).read_text())
+    if model_mock:
+        for n in flow['nodes']:
+            if n['name']=='Extraer pago':
+                n['parameters']['url']='http://simulador:8080/chat/completions'
+                n['parameters'].pop('authentication',None)
+                n['parameters'].pop('genericAuthType',None)
+                n['parameters'].pop('nodeCredentialType',None)
+                n.pop('credentials',None)
     if clock:
         from datetime import date
         frozen=date.fromisoformat(clock)
@@ -96,11 +114,11 @@ def fixture_flow(path,error_id=None,clock=None):
     activate(installed)
     return installed,hook['parameters']['path']
 
-def invoke(flow,path,payload):
+def invoke(flow,path,payload,timeout=45):
     from test_08 import executions, finished
     previous=[e['id'] for e in executions(flow['id'])]
     request('/webhook/'+path,payload)
-    return finished(flow['id'],previous)
+    return finished(flow['id'],previous,timeout=timeout)
 
 def message_count():
     return request('/api/v1/messages',base='http://127.0.0.1:18025')['total']
