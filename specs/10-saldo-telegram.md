@@ -71,6 +71,12 @@ Lo que escribe el cliente es un dato no confiable: no se copia en ninguna respue
    4. Contacto propio con teléfono normalizado → `contacto_valido`.
    5. Texto `/start` o `/saldo` (admite `@nombre_del_bot` detrás) → `inicio`.
    6. Cualquier otro mensaje → `no_entendido`.
+
+   Casos límite:
+   - Un `Update` sin `message` (por ejemplo, una edición) o sin `chat.id` entero no produce ningún item: el flujo termina sin responder.
+   - Un chat sin `type` se trata como `grupo`.
+   - El `caption` de una foto no cuenta como texto: da `no_entendido`.
+   - `/start` con un parámetro de enlace (`/start abc`) cuenta como `inicio`.
 2. `Leer configuración` (Postgres): una sola fila con `api_base_url` y `contacto_html`. Settings: On Error: Continue (using error output), con la salida de error hacia `Redactar aviso de fallo`.
    - `contacto_html` es `CONTACTO_TIENDA` sin espacios en los extremos y **ya escapado para HTML** en la consulta. Si la clave falta o está vacía, es `''`. `Redactar respuesta` y `Redactar aviso de fallo` lo usan tal cual, sin volver a escaparlo; `Enviar aviso de grupo` no lo usa.
    - El `replace` de PostgreSQL sustituye todas las apariciones, en el mismo orden que `escapar()` (ver paso 6). Una agregación sin `GROUP BY` siempre devuelve una fila, aunque falten las claves:
@@ -84,16 +90,22 @@ Lo que escribe el cliente es un dato no confiable: no se copia en ninguna respue
 
 3. `Decidir respuesta` (Switch por `$('Clasificar mensaje').first().json.tipo`): `grupo` va a `Enviar aviso de grupo`; `contacto_valido`, a `Consultar apartados activos`; el resto, a `Redactar respuesta`.
 4. `Consultar apartados activos` (HTTP Request): `GET {API_BASE_URL}/api/apartados?estado=activo`, sin `pagina` ni `por_pagina`, credencial `PF · API tienda`. Sin `pagina`, la API devuelve todos los activos: el `LIMIT` solo se añade cuando llega `pagina` ([controllers/apartados.py](../backend/controllers/apartados.py), [models/apartado.py](../backend/models/apartado.py)), y entonces devuelve 25 por página. Con `pagina`, un cliente cuyos apartados quedaran fuera de esa página recibiría un saldo incompleto, que es peor que no encontrarlo. No se compara con `X-Total-Count`: el SQL ya garantiza la lista completa y leer la cabecera obligaría a cambiar la forma de la salida del nodo. Settings: Retry On Fail desactivado (ver Errores); Always Output Data activado, para que una lista vacía llegue a `Filtrar por teléfono`; On Error: Continue (using error output).
+
+   Tipos observados en la API real el 28/10/2026: la respuesta es un array en la raíz; `id` es un entero; `pendiente` es un número en euros con hasta 2 decimales, no céntimos; `fecha_limite` es `AAAA-MM-DD`, sin hora.
 5. `Filtrar por teléfono` (Code): descarta los items sin `id` o con `estado` distinto de `activo` (vuelve a comprobar el filtro de la API), normaliza cada `telefono` con la misma función y se queda con los que coinciden con el contacto. Resultado:
    - ninguno → `no_encontrado`;
-   - más de un nombre de `cliente`, comparando sin tildes, mayúsculas ni espacios sobrantes → `identidad_dudosa`;
+   - más de un nombre de `cliente` → `identidad_dudosa`. Antes de compararlos, los nombres se recortan, los espacios repetidos se unen en uno y se pasan a minúsculas. Las tildes no se quitan: «Ruiz» y «Ruíz» cuentan como dos nombres y la respuesta deriva a la tienda;
    - en otro caso → `saldo`, con los apartados en el orden de la API (por `fecha_limite`).
+
+   Si el teléfono del contacto no llega como texto, el resultado es `no_encontrado`. Es una defensa: `Decidir respuesta` solo manda aquí los `contacto_valido`.
 6. `Redactar respuesta` (Code) produce `{chat_id, texto}`:
-   - Importes: el número de la API pasa a céntimos a partir de su texto, sin aritmética de coma flotante, y se muestra con coma y dos decimales (`79,90 €`).
+   - Importes: el número de la API pasa a céntimos a partir de su texto, sin aritmética de coma flotante, y se muestra con punto de miles, coma y dos decimales (`79,90 €`, `1.234,50 €`). `pendiente` tiene que ser de tipo número y su texto debe cumplir `/^\d+(\.\d{1,2})?$/`; un texto como `'19.50'` también deriva. No se suman los pendientes: no hay total.
    - Fechas: de `AAAA-MM-DD` a `DD/MM/AAAA` por texto, sin `Date`.
-   - Si hoy, en Europe/Madrid, es posterior a `fecha_limite`, se avisa de que el plazo ha pasado y de que hable con la tienda. El flujo no vence nada.
+   - Si hoy, en Europe/Madrid, es posterior a `fecha_limite`, esa línea termina con «El plazo ya ha pasado: habla con {contacto}.». El flujo no vence nada.
    - El aviso es cierto aunque PF-06 aún no haya vencido el apartado (por ejemplo, entre las 00:00 y las 9:00): la app rechaza los abonos fuera de plazo ([invariante 3](../docs/ontologia.md), [models/abono.py](../backend/models/abono.py)), así que el cliente ya no puede pagar ese apartado.
-   - Si `talla` es nula, se omite.
+   - Si `talla` es nula o está vacía, se omite. `producto` se muestra sin espacios en los extremos.
+   - Si un apartado tiene un `pendiente` o una `fecha_limite` que no son válidos, o un `producto` nulo, vacío, solo con espacios o que no es texto, se envía el texto de derivación (el mismo que en `identidad_dudosa`) para toda la respuesta. No se envía un saldo parcial. Ver el límite conocido en Errores.
+   - Un `tipo` no previsto lanza un error: la ejecución falla y salta PF-08.
    - Escape HTML con una única función, con expresiones regulares globales y en este orden, para no escapar dos veces el `&` de `&lt;`:
 
      ```js
@@ -112,7 +124,7 @@ Lo que escribe el cliente es un dato no confiable: no se copia en ninguna respue
 8. `Enviar aviso de grupo` (Telegram): Chat ID de `Clasificar mensaje`, texto fijo, Parse Mode HTML, sin datos ni teclado. Telegram no admite botones de contacto en grupos.
 9. `Redactar aviso de fallo` (Code): recibe la salida de error de `Leer configuración` o la de `Consultar apartados activos` y produce `{chat_id, texto, origen}`.
    - `chat_id`: `$('Clasificar mensaje').first().json.chat_id`.
-   - Contacto: `const c = $('Leer configuración').first()?.json?.contacto_html;`, con `.first()` y no `.item`. Con On Error en salida de error, si `Leer configuración` falló, `$('Leer configuración')` no suele lanzar una excepción: devuelve el item de error, que no tiene `contacto_html`. Se usa `c` tal cual (ya escapado) solo si `typeof c === 'string' && c.trim() !== ''`; si no, «la tienda». La lectura va además dentro de un `try`, por si el nodo no devuelve ningún item.
+   - Contacto: `const c = $('Leer configuración').first(0)?.json?.contacto_html;`. El índice 0 es la salida Success. En n8n 2.45.4, desde este nodo, `first()` sin índice lee la salida Error de `Leer configuración`, porque es la que está conectada directamente a él, y está vacía cuando falla la API (observado en las ejecuciones 395 a 397). Si falla `Leer configuración`, la salida 0 está vacía y se usa «la tienda». Se usa `c` tal cual (ya escapado) solo si `typeof c === 'string' && c.trim() !== ''`; si no, «la tienda». La lectura va además dentro de un `try`, por si el nodo no devuelve ningún item.
    - `origen`: `$('Consultar apartados activos').isExecuted ? 'API' : 'configuración'`.
 10. `Avisar fallo al cliente` (Telegram): Chat ID `{{ $json.chat_id }}`, Text `{{ $json.texto }}`, Parse Mode HTML, sin teclado (así sirve también si el fallo ocurre en un grupo).
 11. `Detener por fallo de consulta` (Stop and Error): mensaje `Fallo al consultar: {{ $('Redactar aviso de fallo').first().json.origen }}`, es decir «Fallo al consultar: API» o «Fallo al consultar: configuración», sin datos del cliente. Se usa `$('Redactar aviso de fallo')` y no `$json` porque la entrada de este nodo es la respuesta de Telegram de `Avisar fallo al cliente`.
@@ -128,7 +140,7 @@ Textos (`{contacto}` según el paso 6):
 | `contacto_ajeno` | Solo puedo consultar tu propio número. Pulsa «Consultar mi saldo» para compartir tu contacto. |
 | `telefono_no_valido`, `no_encontrado` | No encuentro apartados pendientes con tu número. Si crees que es un error, habla con {contacto}. |
 | `identidad_dudosa` | No puedo mostrarte estos datos por aquí. Habla con {contacto} y lo revisamos. |
-| `saldo` | Tus apartados pendientes: una línea por apartado con «{producto} (talla {talla}): te faltan {pendiente}. Fecha límite: {fecha_limite}.» y al final «Si tienes dudas, habla con {contacto}.» |
+| `saldo` | «Tus apartados pendientes:» y una línea por apartado con «- {producto} (talla {talla}): te faltan {pendiente}. Fecha límite: {fecha_limite}.», más «El plazo ya ha pasado: habla con {contacto}.» si corresponde. Al final, «Si tienes dudas, habla con {contacto}.» |
 | `grupo` | Por privacidad, las consultas de saldo solo se atienden en un chat privado con este bot. |
 | Fallo de configuración o de API | Ahora mismo no puedo consultar tu saldo. Inténtalo más tarde o habla con {contacto}. |
 
@@ -147,10 +159,11 @@ Una sola función para el contacto de Telegram y para el `telefono` de cada apar
 5. 9 dígitos que empiezan por 6 o 7: `+34` y los dígitos.
 6. Otros 9 dígitos (por ejemplo un fijo `912…`) o menos de 9: no válido.
 7. Más de 9 dígitos sin `+` ni `00`: se toman como número con prefijo, `+` y los dígitos.
+   Una errata de 10 dígitos o más pasa la validación si cumple el formato, pero no coincide con nadie y el cliente recibe la derivación a la tienda.
 
 Validación final: entre 8 y 15 dígitos tras el `+`, sin 0 inicial; si empieza por `+34`, exactamente 9 dígitos más. Lo que no la cumple no es válido.
 
-Un teléfono de Telegram no válido da `telefono_no_valido`, sin llamar a la API. Un `telefono` de la app no válido hace que ese apartado no coincida nunca; el cliente recibe la derivación a la tienda. La comparación es una igualdad exacta entre cadenas E.164.
+Un teléfono de Telegram no válido da `telefono_no_valido`, sin llamar a la API. Un `telefono` de la app no válido hace que ese apartado no coincida nunca; el cliente recibe la derivación a la tienda. En particular, un cliente con un fijo apuntado en la app nunca se encuentra (F10-16). La comparación es una igualdad exacta entre cadenas E.164.
 
 ## Errores e idempotencia
 
@@ -201,7 +214,7 @@ Versión de n8n (revisado el 28/10/2026): ningún compose fija la 2.45.4 de la p
 - `docker-compose.yml` de la entrega: `docker.n8n.io/n8nio/n8n`, sin etiqueta, así que se usa `latest`.
 - `tests/n8n/compose.yml`: `${PF_TEST_N8N_IMAGE:-docker.n8n.io/n8nio/n8n:2.44.5}`. El valor por defecto es 2.44.5, pero el `.env.local` que genera `preparar.py` pone `latest`.
 
-El resultado vale para la 2.45.4; con otra versión, el comportamiento del nodo Telegram (por ejemplo, el `parse_mode` por defecto) puede cambiar y hay que repetir la prueba previa.
+Límite conocido: dos comportamientos de los que depende PF-10 se observaron solo en n8n 2.45.4 (laboratorio con `latest` el 28/10/2026): el `parse_mode: Markdown` por defecto del nodo Telegram y que `first()` sin índice lea la salida Error de `Leer configuración` desde `Redactar aviso de fallo` (de ahí `first(0)`, paso 9). `docker-compose.yml` usa `latest` sin fijar y `tests/n8n/compose.yml` tiene 2.44.5 por defecto. Con otra versión hay que repetir F10-18, F10-22 y la prueba previa. Fijar 2.45.4 se propondrá a Fabiana en una PR aparte, antes de la de `main`.
 
 Laboratorio: `python3 tests/n8n/lab.py 08` y después `python3 tests/n8n/lab.py 10`. Cambios de soporte:
 
@@ -292,4 +305,4 @@ Pendientes:
 - Túnel para la prueba manual (Rita y Fabiana).
 - Orden de fusión: PF-10 fusiona `dev` después de que entre la #36; entonces se vuelven a unir `tests/n8n/lab.py` y la lista de `Preparar aviso`.
 
-Bitácora: [docs/ai-log/10-saldo-telegram.md](../docs/ai-log/10-saldo-telegram.md). Evidencias pendientes: pruebas `docs/pruebas/10-saldo-telegram.md`, JSON `workflows/10-saldo-telegram.json` y PR. Los enlaces se añaden cuando existan los archivos.
+Bitácora: [docs/ai-log/10-saldo-telegram.md](../docs/ai-log/10-saldo-telegram.md). Evidencias: [docs/pruebas/10-saldo-telegram.md](../docs/pruebas/10-saldo-telegram.md) y [workflows/10-saldo-telegram.json](../workflows/10-saldo-telegram.json).
