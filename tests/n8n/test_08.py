@@ -17,8 +17,8 @@ def executions(flow_id):
     from urllib.parse import quote
     return request('/rest/executions?filter='+quote(json.dumps({'workflowId':flow_id}))+'&limit=20')['data']['results']
 
-def finished(flow_id, previous=None):
-    deadline=time.monotonic()+45
+def finished(flow_id, previous=None, timeout=45):
+    deadline=time.monotonic()+timeout
     while time.monotonic()<deadline:
         results=executions(flow_id)
         found=next((e for e in results if e['id'] not in (previous or []) and e.get('status') in ('success','error','crashed')),None)
