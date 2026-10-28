@@ -25,7 +25,15 @@ def quote(value):
 
 
 def api(path):
-    return request(path, base='http://127.0.0.1:18000', headers={'X-API-Key': SECRET})
+    return request(path, base='http://127.0.0.1:28000', headers={'X-API-Key': SECRET})
+
+
+def shared_runtime():
+    """Comprobar que la tienda compartida no se recreó ni reinició; puede estar parada."""
+    info = json.loads(subprocess.check_output(
+        ['docker', 'inspect', 'lusogirls-pruebas-tienda-1']))[0]
+    return {'id': info['Id'], 'mounts': info['Mounts'],
+            'running': info['State']['Running'], 'started': info['State']['StartedAt']}
 
 
 def mail_list():
@@ -78,29 +86,19 @@ def main():
         sql('INSERT INTO pf_config VALUES(' + quote(key) + ',' + quote(value) +
             ') ON CONFLICT(clave) DO UPDATE SET valor=excluded.valor')
 
-    # Solo metadatos necesarios para restaurar el servicio; no se imprimen secretos.
-    container_id = subprocess.check_output(compose + ['ps', '-q', 'tienda'], text=True).strip()
-    container = json.loads(subprocess.check_output(['docker', 'inspect', container_id]))[0]
-    original_env = dict(v.split('=', 1) for v in container['Config']['Env'] if '=' in v)
-    original_mounts = [m['Source'] + ':' + m['Destination'] + (':ro' if not m['RW'] else '')
-                       for m in container['Mounts'] if m['Destination'] in ('/srv/backend', '/srv/frontend')]
-    restore_file = directory / 'restaurar-tienda.json'
-    restore_file.write_text(json.dumps({'services': {'tienda': {
-        'environment': {k: original_env[k] for k in ('DB_PATH', 'N8N_WEBHOOK_URL', 'SEED')},
-        'volumes': original_mounts,
-    }}}))
-    test_file = directory / 'tienda.json'
-    test_file.write_text(json.dumps({'services': {'tienda': {
-        'environment': {'DB_PATH': '/data/' + database + '.db',
-                        'N8N_WEBHOOK_URL': 'http://n8n:5678/webhook/tienda', 'SEED': '1'},
-        'volumes': [str(ROOT / 'backend') + ':/srv/backend:ro',
-                    str(ROOT / 'frontend') + ':/srv/frontend:ro'],
-    }}}))
-    before_store = {resource: api('/api/' + resource) for resource in ('apartados', 'abonos', 'ventas', 'vales')}
+    # Contenedor y volumen propios: la tienda compartida no se reinicia ni cambia de base.
+    store_name = database + '_tienda'
+    router_path = 'qa-recibos-' + token
+    store_env = directory / '.env.local'
+    store_env.touch(mode=0o600)
+    store_env.write_text('API_KEY=' + SECRET + '\nDB_PATH=/data/tienda.db\nSEED=1\n'
+                         'TZ=Europe/Madrid\nN8N_WEBHOOK_URL=http://n8n:5678/webhook/' + router_path + '\n')
+    before_store = shared_runtime()
     sql('CREATE DATABASE ' + database, db='automatizaciones')
     sql((ROOT / 'infra/registro.sql').read_text())
     sql((ROOT / 'infra/03-pagos.sql').read_text())
     config('CUENTA_BUZON', database)
+    config('API_BASE_URL', 'http://' + store_name + ':8000')
     postgres = request('/rest/credentials', {
         'name': 'PF · Registro auxiliar · ' + database, 'type': 'postgres',
         'data': {'host': 'registro', 'port': 5432, 'database': database,
@@ -112,6 +110,9 @@ def main():
         for node in flow['nodes']:
             if 'postgres' in node.get('credentials', {}):
                 node['credentials']['postgres'] = {'id': postgres['id'], 'name': postgres['name']}
+            if Path(path).name == '00-entrada-eventos.json' and node['type'] == 'n8n-nodes-base.webhook':
+                node['parameters']['path'] = router_path
+                node['webhookId'] = str(uuid.uuid4())
         target = directory / Path(path).name
         target.write_text(json.dumps(flow, ensure_ascii=False))
         return target
@@ -121,7 +122,7 @@ def main():
               'pf02_sha256': hashlib.sha256(source.read_bytes()).hexdigest(),
               'casos': evidence, 'restaurado': False}
     report_file = directory / 'evidencia.json'
-    changed_store = False
+    store_started = False
     try:
         error = install(isolated_source(ROOT / 'workflows/08-errores.json'))
         flows.append(error)
@@ -136,9 +137,14 @@ def main():
         flow = imap_flow(isolated_source(ROOT / 'workflows/03-abonos-distancia.json'),
                          error['id'], model_mock=not live)
         flows.append(flow)
-        changed_store = True
-        subprocess.run(compose + ['-f', str(test_file), 'up', '-d', 'tienda'],
-                       check=True, capture_output=True)
+        subprocess.run(['docker', 'run', '-d', '--name', store_name,
+                        '--network', 'lusogirls-pruebas_default',
+                        '-p', '127.0.0.1:28000:8000', '--env-file', str(store_env),
+                        '-v', database + '_tienda:/data',
+                        '-v', str(ROOT / 'backend') + ':/srv/backend:ro',
+                        '-v', str(ROOT / 'frontend') + ':/srv/frontend:ro',
+                        'paso-firme-tienda:latest'], check=True, capture_output=True)
+        store_started = True
         ready_store()
         fixtures = [
             (1, 'CARMEN RUIZ GARCIA', 10, 'zuecos', 'bizum', None, 1),
@@ -173,6 +179,10 @@ def main():
                 'paso': execution_data(run['id']).get('resultData', {}).get('lastNodeExecuted')}
             new = [a for a in api('/api/abonos') if a['id'] not in {b['id'] for b in before}]
             row = {'caso': f'F03-{f[0]:02d}', 'pf03': run['id'], 'imap': run['imap_execution']}
+            if live:
+                data = execution_data(run['id'])['resultData']['runData']['Extraer pago'][0]
+                response = data['data']['main'][0][0]['json']
+                row['modelo_utilizado'] = response.get('model', 'no indicado por el proveedor')
             if f[6]:
                 assert len(new) == 1 and new[0]['apartado_id'] == f[6] and new[0]['importe'] == f[2] and new[0]['forma_pago'] == f[4], new
                 received = wait_runs(child, prior_child, 1)[0]
@@ -232,14 +242,15 @@ def main():
         raise
     finally:
         cleanup_errors = []
-        if changed_store:
+        if store_started:
             try:
-                subprocess.run(compose + ['-f', str(restore_file), 'up', '-d', 'tienda'],
-                               check=True, capture_output=True)
-                ready_store()
-                assert {resource: api('/api/' + resource) for resource in before_store} == before_store
+                subprocess.run(['docker', 'stop', store_name], check=True, capture_output=True)
             except Exception as error:
                 cleanup_errors.append(type(error).__name__)
+        try:
+            assert shared_runtime() == before_store
+        except Exception as error:
+            cleanup_errors.append(type(error).__name__)
         for flow in reversed(flows):
             try:
                 request('/rest/workflows/' + flow['id'] + '/deactivate', {})

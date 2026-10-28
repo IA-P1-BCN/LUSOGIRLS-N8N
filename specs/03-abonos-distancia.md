@@ -2,7 +2,7 @@
 
 ## Estado y alcance
 
-Implementación en validación: reglas, API, IMAP local y recibos de PF-02 (#38) probados con IA simulada; pendientes OpenRouter real y revisión cruzada, incluida la corrección de talla opcional de PF-02. [HU-03 / #4](https://github.com/IA-P1-BCN/LUSOGIRLS-N8N/issues/4). Autora: Fabiana; revisora: Rita. Entidades: PagoDetectado, Cliente, Apartado y Abono. Ver [evidencia y límites](../docs/pruebas/03-abonos-distancia.md) y [configuración](../docs/03-abonos-distancia.md).
+Validación técnica completada el 28/10: 10/10 casos de correo y repetición con OpenRouter real, IMAP local, API aislada y recibos PF-02; pendiente la nueva revisión y aprobación de Rita. La PR #38 ya está integrada y esta rama incorpora `dev` (`ff58b7e`). [HU-03 / #4](https://github.com/IA-P1-BCN/LUSOGIRLS-N8N/issues/4). Autora: Fabiana; revisora: Rita. Entidades: PagoDetectado, Cliente, Apartado y Abono. Ver [evidencia y límites](../docs/pruebas/03-abonos-distancia.md) y [configuración](../docs/03-abonos-distancia.md).
 
 ## Decisiones de implementación · 22/10/2026
 
@@ -12,11 +12,15 @@ El disparador definitivo es IMAP. Las pruebas cubren tanto un adaptador webhook 
 
 La IA extrae; se contrasta su extracción con el importe, ordenante, concepto y medio presentes en el texto bancario. Nombre completo de la app como prefijo de los tokens del ordenante, al menos dos tokens completos y candidato único; una inicial solo se admite junto a un número de apartado explícito en el texto y concordancia del nombre. Una abreviatura sin ID nunca autoriza un pago. Para Laura se usa el candidato posible solo para explicar el exceso, nunca para registrar.
 
-Reserva atómica por cuenta/Message-ID y bloqueo auxiliar por apartado antes de reconsultar el saldo y hacer el POST. Un resultado incierto conserva reserva/bloqueo para conciliación; no hay reintento automático del POST. No se genera recibo aquí: el evento normal de la app lo entrega a PF-02 de Rita cuando esté integrado.
+Reserva atómica por cuenta/Message-ID y bloqueo auxiliar por apartado antes de reconsultar el saldo y hacer el POST. Un resultado incierto conserva reserva/bloqueo para conciliación; no hay reintento automático del POST. No se genera recibo aquí: el evento normal de la app lo entrega a PF-02 de Rita ya integrado.
 
 ## Disparador y entradas
 
 Correo nuevo de un buzón IMAP de pruebas, formato simple. Cada item se entrega al procesador mediante Execute Workflow Trigger del propio flujo; así un lote de correos no pierde los items posteriores al primero. En laboratorio, un Webhook sustituye únicamente al disparador y permite inyectar los `.eml`. Entrada: `metadata['message-id']` estable (o `messageId`), `subject` y `textPlain` (o `text`). La IA extrae `es_pago`, `ordenante`, `importe`, `concepto`, `medio` y referencia explícita si existe; campos faltantes quedan nulos. El correo se trata como datos, nunca como instrucciones.
+
+`es_pago` clasifica si el correo notifica un pago recibido, aunque después requiera revisión de identidad, importe o plazo. No expresa autorización para registrar el abono. El prompt del 28/10 hace explícita esta distinción después de observar un falso negativo con OpenRouter real; se mantienen los contratos y las validaciones posteriores.
+
+La petición exige JSON Schema para los seis campos, proveedores compatibles (`require_parameters: true`) y hasta 2000 tokens de respuesta/razonamiento. Las respuestas truncadas o ajenas al esquema siguen siendo errores sin cobro; la IA no sustituye las validaciones locales.
 
 ## Procesamiento y salidas
 
@@ -56,12 +60,13 @@ Los motivos de revisión mantienen el vocabulario del contrato: `exceso_sobre_pe
 | 08 Publicidad | Ignorar sin crear cobros |
 | 09 Silvia | Un abono de 5 € al apartado 24 |
 
-- [ ] Los nueve casos cumplen el resultado también con OpenRouter real; la transferencia de Lucía ya está autorizada e implementada.
-- [ ] La IA solo extrae; las decisiones usan reglas y API.
-- [ ] Un mensaje ya confirmado no genera otro pago.
-- [ ] Fallo técnico o resultado incierto no provoca cobros duplicados.
-- [ ] Evidencia de PF-02 tras un pago aceptado y revisión humana de errores y datos enviados al proveedor.
+- [x] Los nueve casos cumplen el resultado también con OpenRouter real; la transferencia de Lucía ya está autorizada e implementada.
+- [x] La IA solo extrae; las decisiones usan reglas y API.
+- [x] Un mensaje ya confirmado no genera otro pago.
+- [x] Fallo técnico o resultado incierto no provoca cobros duplicados.
+- [x] Evidencia de PF-02 tras un pago aceptado.
+- [ ] Revisión humana de errores, datos enviados al proveedor y exportación final.
 
 ### Validación del 26/10/2026
 
-La recepción IMAP, los nueve correos y su repetición están probados con servidor local y Message-ID transmitido como cabecera. La IA permanece simulada; OpenRouter real y PF-02 siguen abiertos. El modelo usa un tipo de credencial distinto del Header Auth de la tienda para impedir que n8n reutilice esa clave al importar un flujo sin credencial del modelo. La exportación elimina IDs locales y conserva los nombres compartidos.
+La recepción IMAP, los nueve correos y su repetición se probaron con servidor local y Message-ID transmitido como cabecera. La IA fue simulada. La integración de ese día usó PF-02 de #38 en `a6ae946`; todavía quedaban abiertas su corrección de talla opcional y la validación de OpenRouter real. El modelo usa un tipo de credencial distinto del Header Auth de la tienda para impedir que n8n reutilice esa clave al importar un flujo sin credencial del modelo. La exportación elimina IDs locales y conserva los nombres compartidos. El estado actual de PF-02 figura al inicio y en la evidencia del 28/10.
