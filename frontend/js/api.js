@@ -55,6 +55,11 @@ export const api = {
   async registrarAbono(id, datos) {
     return (await pedir(`/api/apartados/${id}/abonos`, { method: "POST", body: JSON.stringify(datos) })).json();
   },
+  async cambiarConsentimiento(id, autorizado) {
+    return (await pedir(`/api/apartados/${id}/consentimiento`, {
+      method: "PATCH", body: JSON.stringify({ consentimiento_notificaciones: autorizado }),
+    })).json();
+  },
   async ventas({ pagina, porPagina = 25 } = {}) {
     const r = await pedir(`/api/ventas${consulta({ orden: "desc", pagina, por_pagina: porPagina })}`);
     return { items: await r.json(), total: Number(r.headers.get("X-Total-Count")) };

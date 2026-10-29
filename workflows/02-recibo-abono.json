@@ -121,7 +121,7 @@
     },
     {
       "parameters": {
-        "jsCode": "// ---------- Bloque 1: leer datos ----------\nconst { config: c, entrada } = $input.first().json;\nconst body = entrada.body || {};\nconst evento = body.evento;\nconst a = body.datos;\n\n// ---------- Bloque 2: comprobar ----------\nconst esTexto = v => typeof v === 'string' && v.trim() !== '';\nconst esImporte = v => typeof v === 'number' && Number.isFinite(v) && v >= 0;\nconst esFecha = v => typeof v === 'string' && /^\\d{4}-\\d{2}-\\d{2}$/.test(v);\n\n// Céntimos sin multiplicar decimales (mismo método que PF-04)\nconst cent = v => {\n  if (!/^(0|[1-9]\\d*)(\\.\\d{1,2})?$/.test(String(v))) throw new Error('Importe inválido');\n  const [e, d = ''] = String(v).split('.');\n  const n = Number(e) * 100 + Number(d.padEnd(2, '0'));\n  if (!Number.isSafeInteger(n)) throw new Error('Importe fuera de rango');\n  return n;\n};\n\nif (evento !== 'abono.registrado') throw new Error('Evento inesperado en PF-02');\nif (!a || typeof a !== 'object' || Array.isArray(a)) throw new Error('Apartado ausente');\nif (!Number.isInteger(a.id) || a.id < 1) throw new Error('Apartado sin id válido');\nif (!esTexto(a.cliente) || !esTexto(a.producto)) {\n  throw new Error('Faltan datos del cliente o del producto');\n}\nif (!esImporte(a.importe) || a.importe <= 0) throw new Error('Falta el importe del abono');\nif (!esImporte(a.precio) || a.precio <= 0 || !esImporte(a.abonado) || !esImporte(a.pendiente)) {\n  throw new Error('Faltan datos financieros del apartado');\n}\nif (!['activo', 'liquidado'].includes(a.estado)) throw new Error('Estado de apartado inesperado');\nif (!esTexto(c.CORREO_MARISA) || !esTexto(c.CORREO_REMITENTE)) {\n  throw new Error('Falta configuración de correo');\n}\n\n// La talla es opcional en la app: si falta, se indica sin fallar\nconst talla = esTexto(String(a.talla ?? '')) ? String(a.talla).trim() : 'no indicada';\n\nconst importeC = cent(a.importe);\nconst abonadoC = cent(a.abonado);\nconst pendienteC = cent(a.pendiente);\n\n// Coherencia: liquidado solo con pendiente cero (no se corrige el estado)\nconst incoherente = (a.estado === 'liquidado') !== (pendienteC === 0);\n\n// ---------- Bloque 3: decidir destino ----------\nconst email = typeof a.email === 'string' ? a.email.trim() : '';\nconst emailValido = /^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(email);\nconst base = `abono.registrado:${a.id}:${abonadoC}:${importeC}`;\n\nlet destino, destinatario, clave, motivo;\nif (incoherente) {\n  destino = 'tienda';\n  destinatario = c.CORREO_MARISA;\n  clave = `${base}:tienda`;\n  motivo = 'saldo_contradictorio';\n} else if (emailValido) {\n  destino = 'cliente';\n  destinatario = email;\n  clave = base;\n  motivo = null;\n} else {\n  destino = 'tienda';\n  destinatario = c.CORREO_MARISA;\n  clave = `${base}:tienda`;\n  motivo = email === '' ? 'email_ausente' : 'email_invalido';\n}\n\n// ---------- Bloque 4: escribir el mensaje ----------\nconst euros = n => n.toFixed(2).replace('.', ',') + ' €';\n\nconst resumen = [\n  `Modelo: ${a.producto}`,\n  `Talla: ${talla}`,\n  `Importe de este abono: ${euros(a.importe)}`,\n  `Total abonado: ${euros(a.abonado)}`,\n  `Pendiente: ${euros(a.pendiente)}`\n].join('\\n');\n\nconst recogida = (a.estado === 'liquidado' && !incoherente)\n  ? '\\nEl apartado está pagado por completo: ya puedes pasar a recogerlo.\\n'\n  : '';\n\nlet asunto, texto;\nif (destino === 'cliente') {\n  asunto = `Paso Firme · Recibo de tu abono al apartado n.º ${a.id}`;\n  texto = `Hola, ${a.cliente}:\\n\\n` +\n    `Hemos recibido tu abono.\\n\\n` +\n    `${resumen}\\n${recogida}\\n` +\n    `Gracias por tu confianza.\\nPaso Firme`;\n} else {\n  asunto = `Paso Firme · Abono del apartado n.º ${a.id} sin recibo al cliente`;\n  texto = `Se ha registrado un abono en el apartado n.º ${a.id} de ${a.cliente}, ` +\n    `pero no se ha enviado recibo al cliente (motivo: ${motivo}).\\n\\n` +\n    `${resumen}\\n\\n` +\n    `Teléfono registrado: ${a.telefono || 'no disponible'}.`;\n}\n\n// ---------- Bloque 5: devolver el documento ----------\nreturn [{\n  json: {\n    clave,\n    tipo: destino === 'cliente' ? 'recibo_abono' : 'aviso_abono_sin_recibo',\n    documento: {\n      apartado_id: a.id,\n      destino,\n      motivo,\n      destinatario,\n      remitente: c.CORREO_REMITENTE,\n      asunto,\n      texto\n    }\n  }\n}];"
+        "jsCode": "// ---------- Bloque 1: leer datos ----------\nconst { config: c, entrada } = $input.first().json;\nconst body = entrada.body || {};\nconst evento = body.evento;\nconst a = body.datos;\n\n// ---------- Bloque 2: comprobar ----------\nconst esTexto = v => typeof v === 'string' && v.trim() !== '';\nconst esImporte = v => typeof v === 'number' && Number.isFinite(v) && v >= 0;\nconst esFecha = v => typeof v === 'string' && /^\\d{4}-\\d{2}-\\d{2}$/.test(v);\n\n// Céntimos sin multiplicar decimales (mismo método que PF-04)\nconst cent = v => {\n  if (!/^(0|[1-9]\\d*)(\\.\\d{1,2})?$/.test(String(v))) throw new Error('Importe inválido');\n  const [e, d = ''] = String(v).split('.');\n  const n = Number(e) * 100 + Number(d.padEnd(2, '0'));\n  if (!Number.isSafeInteger(n)) throw new Error('Importe fuera de rango');\n  return n;\n};\n\nif (evento !== 'abono.registrado') throw new Error('Evento inesperado en PF-02');\nif (!a || typeof a !== 'object' || Array.isArray(a)) throw new Error('Apartado ausente');\nif (!Number.isInteger(a.id) || a.id < 1) throw new Error('Apartado sin id válido');\nif (!esTexto(a.cliente) || !esTexto(a.producto)) {\n  throw new Error('Faltan datos del cliente o del producto');\n}\nif (!esImporte(a.importe) || a.importe <= 0) throw new Error('Falta el importe del abono');\nif (!esImporte(a.precio) || a.precio <= 0 || !esImporte(a.abonado) || !esImporte(a.pendiente)) {\n  throw new Error('Faltan datos financieros del apartado');\n}\nif (!['activo', 'liquidado'].includes(a.estado)) throw new Error('Estado de apartado inesperado');\nif (!esTexto(c.CORREO_MARISA) || !esTexto(c.CORREO_REMITENTE)) {\n  throw new Error('Falta configuración de correo');\n}\n\n// La talla es opcional en la app: si falta, se indica sin fallar\nconst talla = esTexto(String(a.talla ?? '')) ? String(a.talla).trim() : 'no indicada';\n\nconst importeC = cent(a.importe);\nconst abonadoC = cent(a.abonado);\nconst pendienteC = cent(a.pendiente);\n\n// Coherencia: liquidado solo con pendiente cero (no se corrige el estado)\nconst incoherente = (a.estado === 'liquidado') !== (pendienteC === 0);\n\n// ---------- Bloque 3: decidir destino ----------\nconst email = typeof a.email === 'string' ? a.email.trim() : '';\nconst emailValido = /^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(email);\nconst base = `abono.registrado:${a.id}:${abonadoC}:${importeC}`;\n\nlet destino, destinatario, clave, motivo;\nif (incoherente) {\n  destino = 'tienda';\n  destinatario = c.CORREO_MARISA;\n  clave = `${base}:tienda`;\n  motivo = 'saldo_contradictorio';\n} else if (emailValido && a.consentimiento_notificaciones === true) {\n  destino = 'cliente';\n  destinatario = email;\n  clave = base;\n  motivo = null;\n} else {\n  destino = 'tienda';\n  destinatario = c.CORREO_MARISA;\n  clave = `${base}:tienda`;\n  motivo = a.consentimiento_notificaciones !== true ? 'sin_consentimiento' : (email === '' ? 'email_ausente' : 'email_invalido');\n}\n\n// ---------- Bloque 4: escribir el mensaje ----------\nconst euros = n => n.toFixed(2).replace('.', ',') + ' €';\n\nconst resumen = [\n  `Modelo: ${a.producto}`,\n  `Talla: ${talla}`,\n  `Importe de este abono: ${euros(a.importe)}`,\n  `Total abonado: ${euros(a.abonado)}`,\n  `Pendiente: ${euros(a.pendiente)}`\n].join('\\n');\n\nconst recogida = (a.estado === 'liquidado' && !incoherente)\n  ? '\\nEl apartado está pagado por completo: ya puedes pasar a recogerlo.\\n'\n  : '';\n\nlet asunto, texto;\nif (destino === 'cliente') {\n  asunto = `Paso Firme · Recibo de tu abono al apartado n.º ${a.id}`;\n  texto = `Hola, ${a.cliente}:\\n\\n` +\n    `Hemos recibido tu abono.\\n\\n` +\n    `${resumen}\\n${recogida}\\n` +\n    `Gracias por tu confianza.\\nPaso Firme`;\n} else {\n  asunto = `Paso Firme · Abono del apartado n.º ${a.id} sin recibo al cliente`;\n  texto = `Se ha registrado un abono en el apartado n.º ${a.id} de ${a.cliente}, ` +\n    `pero no se ha enviado recibo al cliente (motivo: ${motivo}).\\n\\n` +\n    `${resumen}\\n\\n` +\n    `Teléfono registrado: ${a.telefono || 'no disponible'}.`;\n}\n\n// ---------- Bloque 5: devolver el documento ----------\nreturn [{\n  json: {\n    clave,\n    tipo: destino === 'cliente' ? 'recibo_abono' : 'aviso_abono_sin_recibo',\n    documento: {\n      apartado_id: a.id,\n      destino,\n      motivo,\n      destinatario,\n      remitente: c.CORREO_REMITENTE,\n      asunto,\n      texto\n    }\n  }\n}];"
       },
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -131,6 +131,93 @@
       ],
       "id": "e5db8867-5a69-4b84-ad3d-3d05ec30c4ff",
       "name": "Validar abono"
+    },
+    {
+      "name": "Preparar comprobación de consentimiento",
+      "id": "641c3747-b228-4eb6-9272-dceb0f83d9fa",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1000,
+        400
+      ],
+      "parameters": {
+        "jsCode": "return $input.all();"
+      }
+    },
+    {
+      "name": "¿Aviso al cliente?",
+      "id": "cb6d0453-1f42-4fdc-b660-d196cac874f1",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1250,
+        400
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "20c2c3d2-3550-4a89-a04b-c7ed7d505605",
+              "leftValue": "={{ $json.documento.destino === 'cliente' }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      }
+    },
+    {
+      "name": "Consultar consentimiento actual",
+      "id": "5055f07d-9b62-4f66-a971-bcfb67631324",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        1500,
+        400
+      ],
+      "parameters": {
+        "url": "={{ $('Leer configuración').first().json.config.API_BASE_URL + '/api/apartados/' + $json.documento.apartado_id + '/consentimiento' }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "options": {
+          "timeout": 10000
+        }
+      },
+      "credentials": {
+        "httpHeaderAuth": {
+          "name": "PF · API tienda"
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 1000
+    },
+    {
+      "name": "Aplicar consentimiento actual",
+      "id": "b352a77b-32c7-4026-a412-9679e93debc5",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1750,
+        400
+      ],
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const original=$('Preparar comprobación de consentimiento').item.json;\nconst permiso=$json;\nif(permiso.apartado_id!==original.documento.apartado_id || typeof permiso.consentimiento_notificaciones!=='boolean')throw new Error('Respuesta de consentimiento no válida');\nif(permiso.consentimiento_notificaciones)return {json:original};\nconst c=$('Leer configuración').first().json.config;\nreturn {json:{...original,documento:{...original.documento,destino:'tienda',motivo:'consentimiento_retirado',destinatario:c.CORREO_MARISA,\nasunto:`Paso Firme · Aviso no enviado al apartado ${permiso.apartado_id}`,\ntexto:`No se ha enviado el aviso al cliente del apartado ${permiso.apartado_id}: el permiso de correo no está vigente. Revisa la autorización en la app; no se reenvía automáticamente al concederla.`}}};"
+      }
     }
   ],
   "connections": {
@@ -190,6 +277,57 @@
       ]
     },
     "Validar abono": {
+      "main": [
+        [
+          {
+            "node": "Preparar comprobación de consentimiento",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Preparar comprobación de consentimiento": {
+      "main": [
+        [
+          {
+            "node": "¿Aviso al cliente?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "¿Aviso al cliente?": {
+      "main": [
+        [
+          {
+            "node": "Consultar consentimiento actual",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Reservar operación",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Consultar consentimiento actual": {
+      "main": [
+        [
+          {
+            "node": "Aplicar consentimiento actual",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Aplicar consentimiento actual": {
       "main": [
         [
           {

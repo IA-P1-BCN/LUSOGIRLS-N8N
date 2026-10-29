@@ -46,7 +46,7 @@ def imap_flow(path, error_id, model_mock=True):
     return installed
 
 
-def deliver(flow, payload):
+def deliver(flow, payload, timeout=90):
     previous = {execution['id'] for execution in executions(flow['id'])}
     message = EmailMessage()
     message['From'] = 'banco@example.test'
@@ -59,7 +59,7 @@ def deliver(flow, payload):
     # El mensaje recorre SMTP → buzón → Email Trigger IMAP → subflujo PF-03.
     with smtplib.SMTP('127.0.0.1', 13025, timeout=10) as smtp:
         smtp.send_message(message)
-    deadline = time.monotonic() + 90
+    deadline = time.monotonic() + timeout
     while time.monotonic() < deadline:
         fresh = [run for run in executions(flow['id']) if run['id'] not in previous]
         terminal = ('success', 'error', 'crashed')

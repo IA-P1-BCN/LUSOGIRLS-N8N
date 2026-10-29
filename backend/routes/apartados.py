@@ -4,7 +4,7 @@ from fastapi import APIRouter, Depends
 
 from controllers import apartados
 from middleware.seguridad import exigir_clave
-from schemas.apartado import ApartadoDetalle, ApartadoOut, Resumen, Vencimiento
+from schemas.apartado import ApartadoDetalle, ApartadoOut, ConsentimientoOut, Resumen, Vencimiento
 
 router = APIRouter(prefix="/api/apartados", tags=["apartados"], dependencies=[Depends(exigir_clave)])
 
@@ -15,3 +15,7 @@ router.post("", response_model=ApartadoOut, status_code=201, summary="Crear un a
 router.post("/{apartado_id}/abonos", response_model=ApartadoOut, status_code=201, summary="Registrar un abono")(apartados.abonar)
 router.post("/{apartado_id}/vencer", response_model=Vencimiento,
             summary="Marca un apartado fuera de plazo como vencido y genera el vale")(apartados.vencer)
+router.get("/{apartado_id}/consentimiento", response_model=ConsentimientoOut,
+           summary="Consulta el permiso actual para notificaciones")(apartados.consentimiento)
+router.patch("/{apartado_id}/consentimiento", response_model=ConsentimientoOut,
+             summary="Registra o retira el permiso de notificaciones")(apartados.cambiar_consentimiento)

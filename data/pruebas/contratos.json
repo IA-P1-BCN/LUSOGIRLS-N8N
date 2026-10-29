@@ -67,7 +67,8 @@
             "fecha_limite": "2027-01-19",
             "estado": "activo",
             "abonado": 10.0,
-            "pendiente": 79.9
+            "pendiente": 79.9,
+            "consentimiento_notificaciones": true
           }
         },
         "confirmed_notifications": []
@@ -105,7 +106,8 @@
             "fecha_limite": "2027-01-19",
             "estado": "activo",
             "abonado": 10.0,
-            "pendiente": 79.9
+            "pendiente": 79.9,
+            "consentimiento_notificaciones": true
           }
         }
       },
@@ -135,7 +137,8 @@
             "fecha_limite": "2027-01-19",
             "estado": "activo",
             "abonado": 10.0,
-            "pendiente": 79.9
+            "pendiente": 79.9,
+            "consentimiento_notificaciones": true
           }
         },
         "confirmed_notifications": [
@@ -167,7 +170,8 @@
             "estado": "activo",
             "abonado": 30.0,
             "pendiente": 59.9,
-            "importe": 20.0
+            "importe": 20.0,
+            "consentimiento_notificaciones": true
           }
         }
       },
@@ -199,7 +203,8 @@
             "estado": "liquidado",
             "abonado": 89.9,
             "pendiente": 0.0,
-            "importe": 59.9
+            "importe": 59.9,
+            "consentimiento_notificaciones": true
           }
         }
       },
@@ -232,7 +237,8 @@
               "estado": "activo",
               "abonado": 30.0,
               "pendiente": 59.9,
-              "importe": 20.0
+              "importe": 20.0,
+              "consentimiento_notificaciones": true
             }
           },
           {
@@ -250,7 +256,8 @@
               "estado": "activo",
               "abonado": 50.0,
               "pendiente": 39.9,
-              "importe": 20.0
+              "importe": 20.0,
+              "consentimiento_notificaciones": true
             }
           }
         ],
@@ -641,7 +648,8 @@
             "fecha_limite": "2026-10-28",
             "estado": "activo",
             "abonado": 10.0,
-            "pendiente": 79.9
+            "pendiente": 79.9,
+            "consentimiento_notificaciones": true
           }
         ],
         "confirmed_notifications": []
@@ -672,7 +680,8 @@
             "fecha_limite": "2026-10-22",
             "estado": "activo",
             "abonado": 10.0,
-            "pendiente": 79.9
+            "pendiente": 79.9,
+            "consentimiento_notificaciones": true
           }
         ],
         "confirmed_notifications": [
@@ -703,7 +712,8 @@
             "fecha_limite": "2026-10-21",
             "estado": "activo",
             "abonado": 10.0,
-            "pendiente": 79.9
+            "pendiente": 79.9,
+            "consentimiento_notificaciones": true
           }
         ]
       },
@@ -731,7 +741,8 @@
             "fecha_limite": "2026-10-20",
             "estado": "activo",
             "abonado": 10.0,
-            "pendiente": 79.9
+            "pendiente": 79.9,
+            "consentimiento_notificaciones": true
           }
         ],
         "vencer_response": {
@@ -747,7 +758,8 @@
             "fecha_limite": "2026-10-20",
             "estado": "vencido",
             "abonado": 10.0,
-            "pendiente": 79.9
+            "pendiente": 79.9,
+            "consentimiento_notificaciones": true
           },
           "vale": {
             "id": 9201,

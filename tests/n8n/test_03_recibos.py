@@ -14,7 +14,7 @@ import subprocess
 import time
 import uuid
 
-from lab import (ROOT, STATE, SECRET, login, prepare_credentials, request,
+from lab import (ROOT, STATE, SECRET, WEBHOOK_SECRET, login, prepare_credentials, request,
                  install, execution_data)
 from imap_lab import imap_flow, deliver
 from test_08 import activate, executions
@@ -92,7 +92,8 @@ def main():
     store_env = directory / '.env.local'
     store_env.touch(mode=0o600)
     store_env.write_text('API_KEY=' + SECRET + '\nDB_PATH=/data/tienda.db\nSEED=1\n'
-                         'TZ=Europe/Madrid\nN8N_WEBHOOK_URL=http://n8n:5678/webhook/' + router_path + '\n')
+                         'TZ=Europe/Madrid\nN8N_WEBHOOK_KEY=' + WEBHOOK_SECRET +
+                         '\nN8N_WEBHOOK_URL=http://n8n:5678/webhook/' + router_path + '\n')
     before_store = shared_runtime()
     sql('CREATE DATABASE ' + database, db='automatizaciones')
     sql((ROOT / 'infra/registro.sql').read_text())
@@ -107,6 +108,8 @@ def main():
 
     def isolated_source(path):
         flow = json.loads(Path(path).read_text())
+        # Solo esta copia del laboratorio conserva evidencia ficticia.
+        flow['settings'].update(saveDataSuccessExecution='all', saveDataErrorExecution='all')
         for node in flow['nodes']:
             if 'postgres' in node.get('credentials', {}):
                 node['credentials']['postgres'] = {'id': postgres['id'], 'name': postgres['name']}
@@ -146,6 +149,12 @@ def main():
                         'paso-firme-tienda:latest'], check=True, capture_output=True)
         store_started = True
         ready_store()
+        # Solo cuatro clientes ficticios de esta base nueva autorizan los recibos.
+        # No modificar el seed ni dar consentimiento a clientes de la tienda compartida.
+        for apartado_id in (1, 2, 3, 24):
+            request('/api/apartados/' + str(apartado_id) + '/consentimiento',
+                    {'consentimiento_notificaciones': True}, method='PATCH',
+                    base='http://127.0.0.1:28000', headers={'X-API-Key': SECRET})
         fixtures = [
             (1, 'CARMEN RUIZ GARCIA', 10, 'zuecos', 'bizum', None, 1),
             (2, 'JORGE M.', 20, 'apartado 2 bota', 'bizum', 2, 2),
@@ -174,7 +183,7 @@ def main():
             prior_messages = {m['ID'] for m in mail_list()}
             prior_child = {r['id'] for r in executions(child['id'])}
             prior_router = {r['id'] for r in executions(router['id'])}
-            run = deliver(flow, payload)
+            run = deliver(flow, payload, timeout=300 if live else 90)
             assert run['status'] == 'success', {'caso': f[0], 'ejecucion': run['id'],
                 'paso': execution_data(run['id']).get('resultData', {}).get('lastNodeExecuted')}
             new = [a for a in api('/api/abonos') if a['id'] not in {b['id'] for b in before}]
@@ -227,7 +236,7 @@ def main():
             request('/__fixture', {'extraction': {'es_pago': True, 'ordenante': fixtures[0][1],
                     'importe': 10, 'concepto': 'zuecos', 'medio': 'bizum', 'apartado_id': None}},
                     base='http://127.0.0.1:18080')
-        run = deliver(flow, first_mail)
+        run = deliver(flow, first_mail, timeout=300 if live else 90)
         assert run['status'] == 'success' and api('/api/abonos') == before
         assert {m['ID'] for m in mail_list()} == prior_messages
         assert {r['id'] for r in executions(child['id'])} == prior_child

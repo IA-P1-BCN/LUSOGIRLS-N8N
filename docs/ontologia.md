@@ -8,7 +8,7 @@ Fuente de verdad: [esquema SQLite](../backend/database.py), [modelos](../backend
 | --- | --- | --- |
 | Cliente | nombre, teléfono, email | Concepto del negocio. La app guarda `cliente`, `telefono`, `email` dentro de cada apartado; no existe `cliente_id` ni `/api/clientes`. Un nombre no identifica de forma fiable a una persona. |
 | Producto | modelo, talla, precio | Concepto del negocio. Se guarda como `producto`, `talla`, `precio` en el apartado; no hay catálogo, stock ni `producto_id` en la API. |
-| Apartado | `id`, `fecha`, `cliente`, `telefono`, `email`, `producto`, `talla`, `precio`, `fecha_limite`, `estado`, `abonado`, `pendiente` | Tabla `apartados`. La API calcula `abonado` y `pendiente` a partir de los abonos. |
+| Apartado | `id`, `fecha`, `cliente`, `telefono`, `email`, `producto`, `talla`, `precio`, `fecha_limite`, `estado`, `abonado`, `pendiente`, `consentimiento_notificaciones`, `consentimiento_actualizado` | Tabla `apartados`. La API calcula `abonado` y `pendiente` a partir de los abonos. |
 | Abono | `id`, `apartado_id`, `fecha`, `importe`, `forma_pago` | Tabla `abonos`. Incluye el pago inicial. Cada abono pertenece a un único apartado. |
 | Venta | `id`, `fecha`, `concepto`, `importe`, `forma_pago` | Tabla `ventas`: venta directa, independiente de los abonos. Liquidar un apartado no crea una venta aquí. |
 | Vale | `id`, `codigo`, `apartado_id`, `fecha`, `importe`, `usado` | Tabla `vales`. Nace al vencer un apartado; código `VALE-<id con cinco dígitos>`. No hay endpoint para canjearlo. |
@@ -47,7 +47,7 @@ Las relaciones con Cliente, Producto y CierreDiario son conceptuales. No implica
 
 ## Eventos y salidas de la API
 
-Sobre HTTP la app envía `{"evento": "...", "datos": {...}}`. En la salida del nodo Webhook se encuentra bajo `body`.
+Con Header Auth `X-PF-Webhook-Key` (HU-14), la app envía `{"evento": "...", "datos": {...}}`. En la salida del nodo Webhook se encuentra bajo `body`.
 
 | Evento | Contenido de `datos` | Ruta en n8n |
 | --- | --- | --- |
@@ -63,5 +63,5 @@ Crear un apartado inserta el abono inicial, pero solo emite `apartado.creado`. E
 - No hay ID único de evento, reintentos del emisor ni entrega garantizada. Los cierres consultan la API aunque no lleguen webhooks.
 - No hay clave de idempotencia en los POST. El flujo necesita un registro auxiliar y una estrategia de conciliación ante resultados inciertos.
 - No hay `fecha_liquidacion`: para el informe mensual se deriva de los abonos del apartado liquidado. El vencimiento usa la fecha del vale.
-- No hay consentimiento ni identidad de Telegram en la app: no suponerlos a partir de un email o nombre. HU-11 y HU-14 necesitan una ampliación de diseño antes de implementarse.
+- HU-14 registra consentimiento de correo por apartado: booleano explícito, false por defecto, con fecha UTC del último cambio. `GET/PATCH /api/apartados/{id}/consentimiento` requieren la clave API. No hay identidad de Telegram ni permiso para ese canal: nunca inferirlos del email, nombre o permiso de correo.
 - `transferencia` se añade a `FORMAS_PAGO` de [config.py](../backend/config.py) por autorización de Fabiana el 22/10/2026. Se conserva como medio propio, incluidos los desgloses; no modifica los pagos históricos.

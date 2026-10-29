@@ -52,7 +52,7 @@ apartados_csv = (ROOT / 'data/excel_actual_apartados.csv').read_text(encoding='u
 ventas_csv = (ROOT / 'data/excel_actual_ventas.csv').read_text(encoding='utf-8')
 lote = lambda **extra: {'modo': 'carga', 'autorizada': True, 'csv_apartados': apartados_csv, 'csv_ventas': ventas_csv, **extra}
 evidence = []
-flow = install(path, error_id); activate(flow)
+flow = install(path, error_id, retain_test_execution=True); activate(flow)
 try:
     # 1. Contratos F09: con la carga permitida y autorizada, ninguna fila llega a la API (post_count 0).
     set_config('API_BASE_URL', 'http://simulador:8080'); set_config('MIGRACION_CARGA_PERMITIDA', 'si')

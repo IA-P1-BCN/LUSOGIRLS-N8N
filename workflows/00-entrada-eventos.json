@@ -14,9 +14,15 @@
         "httpMethod": "POST",
         "path": "tienda",
         "responseMode": "onReceived",
-        "options": {}
+        "options": {},
+        "authentication": "headerAuth"
       },
-      "webhookId": "e992fffc-ebae-4be3-b79f-0bc8c0504991"
+      "webhookId": "e992fffc-ebae-4be3-b79f-0bc8c0504991",
+      "credentials": {
+        "httpHeaderAuth": {
+          "name": "PF · Webhook tienda"
+        }
+      }
     },
     {
       "id": "6f9a317c-d574-4d5b-805b-79792964c617",
@@ -321,9 +327,11 @@
   "settings": {
     "executionOrder": "v1",
     "timezone": "Europe/Madrid",
-    "saveDataErrorExecution": "all",
-    "saveDataSuccessExecution": "all",
-    "callerPolicy": "workflowsFromSameOwner"
+    "saveDataErrorExecution": "none",
+    "saveDataSuccessExecution": "none",
+    "callerPolicy": "workflowsFromSameOwner",
+    "saveManualExecutions": false,
+    "saveExecutionProgress": false
   },
   "active": false,
   "pinData": {}

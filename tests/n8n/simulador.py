@@ -49,6 +49,14 @@ class Handler(BaseHTTPRequestHandler):
             with urllib.request.urlopen(req) as response:
                 return self.reply(response.status,json.load(response),response.headers.get('X-Total-Count'))
         key=route.path.rsplit('/',1)[-1]
+        if key=='consentimiento':
+            identifier=route.path.split('/')[-2]
+            value=fixture.get('consentimientos',{}).get(identifier)
+            if value is None:
+                details=fixture.get('detalles',{}).get(identifier) or next((a for a in fixture.get('apartados',[]) if str(a.get('id'))==identifier),None)
+                value=details.get('consentimiento_notificaciones') if details else None
+            if not isinstance(value,bool):return self.reply(404,{'detail':'Permiso ficticio no configurado'})
+            return self.reply(200,{'apartado_id':int(identifier),'consentimiento_notificaciones':value,'consentimiento_actualizado':None})
         if key.isdigit():
             value=fixture.get('detalles',{}).get(key)
             return self.reply(200 if value else 404,value or {'detail':'No encontrado'})

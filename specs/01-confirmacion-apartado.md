@@ -18,7 +18,7 @@ Evento `apartado.creado` en PF-00. `datos` es un Apartado: `id`, `cliente`, `pro
 
 ## Procesamiento y salidas
 
-Validar campos requeridos y usar literalmente los saldos y fecha límite que entrega la app. Preparar una confirmación con modelo, talla disponible, precio, abonado, pendiente y plazo. Si nació `liquidado`, incluir que puede recogerse. Con email válido, enviar por el canal de correo configurado; si no hay correo, avisar a Marisa sin fallar por ese motivo. Una alternativa Telegram necesita identidad y canal acordados, nunca inferidos del nombre.
+Validar campos requeridos y usar literalmente los saldos y fecha límite que entrega la app. Preparar una confirmación con modelo, talla disponible, precio, abonado, pendiente y plazo. Si nació `liquidado`, incluir que puede recogerse. Con email válido y consentimiento vigente, enviar por el canal de correo configurado; si no hay correo, avisar a Marisa sin fallar por ese motivo. Una alternativa Telegram necesita identidad y canal acordados, nunca inferidos del nombre.
 
 No registrar otro abono: el inicial ya está guardado por la app. No esperar `abono.registrado` para ese pago inicial.
 
@@ -39,3 +39,9 @@ Campos financieros ausentes: incidencia, sin inventar un saldo. Error del provee
 - [x] Falta de correo: aviso a la tienda y cero envíos al cliente.
 - [x] Evento repetido con envío confirmado: cero mensajes adicionales.
 - [ ] JSON importado, evidencia con destino de prueba y revisión en la PR hacia `dev`.
+
+## Ampliación HU-14 · 28/10/2026
+
+El correo del cliente exige `consentimiento_notificaciones === true` en el evento/detalle y en `GET /api/apartados/{id}/consentimiento`, consultado antes de reservar el envío con `PF · API tienda`. False/ausente produce aviso a Marisa; una revocación posterior produce un aviso mínimo a la tienda; un error de la consulta impide el envío y activa PF-08. No basta con que exista email. La API actualizada debe desplegarse antes que el flujo. La consulta y SMTP no son una transacción atómica; una revocación simultánea al envío ya iniciado no puede retirarlo.
+
+Modificar el permiso no dispara avisos históricos. Las claves existentes se mantienen; un evento reenviado manualmente con permiso y correo ya válidos puede alcanzar una clave de destinatario aún no confirmada. No usar reenvíos masivos como mecanismo de alta del consentimiento. Pruebas nuevas: [HU-14](../docs/pruebas/14-datos-personales.md); los contratos F01/F02/F06 declaran permiso ficticio explícito para los casos positivos.

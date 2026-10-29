@@ -29,9 +29,9 @@ Antes de cambiar un flujo, leer [README.md](README.md), [guía de la app](docs/g
 | Evento de prueba desde la app | `http://n8n:5678/webhook-test/tienda` |
 | Evento de producción desde la app | `http://n8n:5678/webhook/tienda` |
 
-La API usa una credencial Header Auth de n8n con cabecera `X-API-Key`. El valor se configura localmente; nunca se copia a Git. `API_KEY`, `N8N_WEBHOOK_URL` y `SEED` están en `.env`, ignorado por Git.
+La API usa una credencial Header Auth de n8n con cabecera `X-API-Key`. El valor se configura localmente; nunca se copia a Git. `API_KEY`, `N8N_WEBHOOK_URL`, `N8N_WEBHOOK_KEY` y `SEED` están en `.env`, ignorado por Git.
 
-Un único Webhook `POST tienda` recibe `{evento, datos}`. En su salida se leen `$json.body.evento` y `$json.body.datos`; un Switch distribuye los cuatro eventos documentados. El envío de la app no incluye autenticación, ID de evento ni reintentos. No afirmar que es un webhook protegido o una entrega garantizada. Protegerlo requiere coordinar emisor y receptor.
+Un único Webhook `POST tienda` recibe `{evento, datos}`. En su salida se leen `$json.body.evento` y `$json.body.datos`; un Switch distribuye los cuatro eventos documentados. HU-14 coordina emisor y receptor: la app envía `X-PF-Webhook-Key` y PF-00/PF-09 exigen Header Auth (`PF · Webhook tienda`). No hay ID de evento, reintentos ni entrega garantizada. No conceder consentimiento por tener email: los avisos al cliente exigen permiso explícito vigente por apartado; ver `specs/14-datos-personales.md`.
 
 Fabiana autorizó correo local de pruebas (SMTP/Mailpit) y OpenRouter gratuito el 22/10/2026. El registro auxiliar es PostgreSQL, con reservas atómicas; ver `docs/automatizaciones-locales.md`. Las credenciales se configuran por instancia. La conexión al buzón bancario real y los destinos externos necesitan configuración antes de publicarse. SQLite pertenece a la app: los flujos acceden por API.
 

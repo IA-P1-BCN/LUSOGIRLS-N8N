@@ -38,7 +38,7 @@
     },
     {
       "parameters": {
-        "jsCode": "// ---------- Bloque 1: leer datos ----------\nconst { config: c, entrada } = $input.first().json;\nconst body = entrada.body || {};\nconst evento = body.evento;\nconst a = body.datos;\n\n// ---------- Bloque 2: comprobar ----------\nconst esTexto = v => typeof v === 'string' && v.trim() !== '';\nconst esImporte = v => typeof v === 'number' && Number.isFinite(v) && v >= 0;\nconst esFecha = v => typeof v === 'string' && /^\\d{4}-\\d{2}-\\d{2}$/.test(v);\n\nif (evento !== 'apartado.creado') throw new Error('Evento inesperado en PF-01');\nif (!a || typeof a !== 'object' || Array.isArray(a)) throw new Error('Apartado ausente');\nif (!Number.isInteger(a.id) || a.id < 1) throw new Error('Apartado sin id válido');\nif (!esTexto(a.cliente) || !esTexto(a.producto)) {\n  throw new Error('Faltan datos del cliente o del producto');\n}\n// La talla es opcional en la app: si falta, se indica sin fallar\nconst talla = esTexto(String(a.talla ?? '')) ? String(a.talla).trim() : 'no indicada';\nif (!esImporte(a.precio) || a.precio <= 0 || !esImporte(a.abonado) || !esImporte(a.pendiente)) {\n  throw new Error('Faltan datos financieros del apartado');\n}\nif (!esFecha(a.fecha_limite)) throw new Error('Falta la fecha límite');\nif (!['activo', 'liquidado'].includes(a.estado)) throw new Error('Estado de apartado inesperado');\nif (!esTexto(c.CORREO_MARISA) || !esTexto(c.CORREO_REMITENTE)) {\n  throw new Error('Falta configuración de correo');\n}\n\n// ---------- Bloque 3: decidir destino ----------\nconst email = typeof a.email === 'string' ? a.email.trim() : '';\nconst emailValido = /^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(email);\n\nlet destino, destinatario, clave, motivo;\nif (emailValido) {\n  destino = 'cliente';\n  destinatario = email;\n  clave = `apartado.creado:${a.id}`;\n  motivo = null;\n} else {\n  destino = 'tienda';\n  destinatario = c.CORREO_MARISA;\n  clave = `apartado.creado:${a.id}:tienda`;\n  motivo = email === '' ? 'email_ausente' : 'email_invalido';\n}\n\n// ---------- Bloque 4: escribir el mensaje ----------\nconst euros = n => n.toFixed(2).replace('.', ',') + ' €';\nconst fecha = f => f.split('-').reverse().join('/');\n\nconst resumen = [\n  `Modelo: ${a.producto}`,\n  `Talla: ${talla}`,\n  `Precio: ${euros(a.precio)}`,\n  `Abonado: ${euros(a.abonado)}`,\n  `Pendiente: ${euros(a.pendiente)}`,\n  `Fecha límite: ${fecha(a.fecha_limite)}`\n].join('\\n');\n\nconst recogida = a.estado === 'liquidado'\n  ? '\\nEl apartado está pagado por completo: ya puedes pasar a recogerlo.\\n'\n  : '';\n\nlet asunto, texto;\nif (destino === 'cliente') {\n  asunto = `Paso Firme · Confirmación de tu apartado n.º ${a.id}`;\n  texto = `Hola, ${a.cliente}:\\n\\n` +\n    `Hemos registrado tu apartado en Paso Firme.\\n\\n` +\n    `${resumen}\\n${recogida}\\n` +\n    `Gracias por tu confianza.\\nPaso Firme`;\n} else {\n  asunto = `Paso Firme · Apartado n.º ${a.id} sin correo del cliente`;\n  texto = `Se ha creado el apartado n.º ${a.id} de ${a.cliente}, ` +\n    `pero no se ha enviado confirmación al cliente (motivo: ${motivo}).\\n\\n` +\n    `${resumen}\\n${recogida}\\n` +\n    `Teléfono registrado: ${a.telefono || 'no disponible'}.`;\n}\n\n// ---------- Bloque 5: devolver el documento ----------\nreturn [{\n  json: {\n    clave,\n    tipo: destino === 'cliente' ? 'confirmacion_apartado' : 'aviso_apartado_sin_correo',\n    documento: {\n      apartado_id: a.id,\n      destino,\n      motivo,\n      destinatario,\n      remitente: c.CORREO_REMITENTE,\n      asunto,\n      texto\n    }\n  }\n}];"
+        "jsCode": "// ---------- Bloque 1: leer datos ----------\nconst { config: c, entrada } = $input.first().json;\nconst body = entrada.body || {};\nconst evento = body.evento;\nconst a = body.datos;\n\n// ---------- Bloque 2: comprobar ----------\nconst esTexto = v => typeof v === 'string' && v.trim() !== '';\nconst esImporte = v => typeof v === 'number' && Number.isFinite(v) && v >= 0;\nconst esFecha = v => typeof v === 'string' && /^\\d{4}-\\d{2}-\\d{2}$/.test(v);\n\nif (evento !== 'apartado.creado') throw new Error('Evento inesperado en PF-01');\nif (!a || typeof a !== 'object' || Array.isArray(a)) throw new Error('Apartado ausente');\nif (!Number.isInteger(a.id) || a.id < 1) throw new Error('Apartado sin id válido');\nif (!esTexto(a.cliente) || !esTexto(a.producto)) {\n  throw new Error('Faltan datos del cliente o del producto');\n}\n// La talla es opcional en la app: si falta, se indica sin fallar\nconst talla = esTexto(String(a.talla ?? '')) ? String(a.talla).trim() : 'no indicada';\nif (!esImporte(a.precio) || a.precio <= 0 || !esImporte(a.abonado) || !esImporte(a.pendiente)) {\n  throw new Error('Faltan datos financieros del apartado');\n}\nif (!esFecha(a.fecha_limite)) throw new Error('Falta la fecha límite');\nif (!['activo', 'liquidado'].includes(a.estado)) throw new Error('Estado de apartado inesperado');\nif (!esTexto(c.CORREO_MARISA) || !esTexto(c.CORREO_REMITENTE)) {\n  throw new Error('Falta configuración de correo');\n}\n\n// ---------- Bloque 3: decidir destino ----------\nconst email = typeof a.email === 'string' ? a.email.trim() : '';\nconst emailValido = /^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(email);\n\nlet destino, destinatario, clave, motivo;\nif (emailValido && a.consentimiento_notificaciones === true) {\n  destino = 'cliente';\n  destinatario = email;\n  clave = `apartado.creado:${a.id}`;\n  motivo = null;\n} else {\n  destino = 'tienda';\n  destinatario = c.CORREO_MARISA;\n  clave = `apartado.creado:${a.id}:tienda`;\n  motivo = a.consentimiento_notificaciones !== true ? 'sin_consentimiento' : (email === '' ? 'email_ausente' : 'email_invalido');\n}\n\n// ---------- Bloque 4: escribir el mensaje ----------\nconst euros = n => n.toFixed(2).replace('.', ',') + ' €';\nconst fecha = f => f.split('-').reverse().join('/');\n\nconst resumen = [\n  `Modelo: ${a.producto}`,\n  `Talla: ${talla}`,\n  `Precio: ${euros(a.precio)}`,\n  `Abonado: ${euros(a.abonado)}`,\n  `Pendiente: ${euros(a.pendiente)}`,\n  `Fecha límite: ${fecha(a.fecha_limite)}`\n].join('\\n');\n\nconst recogida = a.estado === 'liquidado'\n  ? '\\nEl apartado está pagado por completo: ya puedes pasar a recogerlo.\\n'\n  : '';\n\nlet asunto, texto;\nif (destino === 'cliente') {\n  asunto = `Paso Firme · Confirmación de tu apartado n.º ${a.id}`;\n  texto = `Hola, ${a.cliente}:\\n\\n` +\n    `Hemos registrado tu apartado en Paso Firme.\\n\\n` +\n    `${resumen}\\n${recogida}\\n` +\n    `Gracias por tu confianza.\\nPaso Firme`;\n} else {\n  asunto = `Paso Firme · Apartado n.º ${a.id} sin confirmación al cliente`;\n  texto = `Se ha creado el apartado n.º ${a.id} de ${a.cliente}, ` +\n    `pero no se ha enviado confirmación al cliente (motivo: ${motivo}).\\n\\n` +\n    `${resumen}\\n${recogida}\\n` +\n    `Teléfono registrado: ${a.telefono || 'no disponible'}.`;\n}\n\n// ---------- Bloque 5: devolver el documento ----------\nreturn [{\n  json: {\n    clave,\n    tipo: destino === 'cliente' ? 'confirmacion_apartado' : 'aviso_apartado_sin_correo',\n    documento: {\n      apartado_id: a.id,\n      destino,\n      motivo,\n      destinatario,\n      remitente: c.CORREO_REMITENTE,\n      asunto,\n      texto\n    }\n  }\n}];"
       },
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -131,6 +131,93 @@
           "name": "PF · Registro auxiliar"
         }
       }
+    },
+    {
+      "name": "Preparar comprobación de consentimiento",
+      "id": "729ff55a-f327-42d1-9ef9-2ed4070f27c2",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1000,
+        400
+      ],
+      "parameters": {
+        "jsCode": "return $input.all();"
+      }
+    },
+    {
+      "name": "¿Aviso al cliente?",
+      "id": "80591295-f7de-45b0-aeb3-9a887f36f8fe",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1250,
+        400
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "d99d2024-5350-4565-af66-2b830c301585",
+              "leftValue": "={{ $json.documento.destino === 'cliente' }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      }
+    },
+    {
+      "name": "Consultar consentimiento actual",
+      "id": "db1e7f70-647d-475d-a17b-e3b14fb4167f",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        1500,
+        400
+      ],
+      "parameters": {
+        "url": "={{ $('Leer configuración').first().json.config.API_BASE_URL + '/api/apartados/' + $json.documento.apartado_id + '/consentimiento' }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "options": {
+          "timeout": 10000
+        }
+      },
+      "credentials": {
+        "httpHeaderAuth": {
+          "name": "PF · API tienda"
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 1000
+    },
+    {
+      "name": "Aplicar consentimiento actual",
+      "id": "f3b26f96-8ead-4225-8cfe-dec19c27ee05",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1750,
+        400
+      ],
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const original=$('Preparar comprobación de consentimiento').item.json;\nconst permiso=$json;\nif(permiso.apartado_id!==original.documento.apartado_id || typeof permiso.consentimiento_notificaciones!=='boolean')throw new Error('Respuesta de consentimiento no válida');\nif(permiso.consentimiento_notificaciones)return {json:original};\nconst c=$('Leer configuración').first().json.config;\nreturn {json:{...original,documento:{...original.documento,destino:'tienda',motivo:'consentimiento_retirado',destinatario:c.CORREO_MARISA,\nasunto:`Paso Firme · Aviso no enviado al apartado ${permiso.apartado_id}`,\ntexto:`No se ha enviado el aviso al cliente del apartado ${permiso.apartado_id}: el permiso de correo no está vigente. Revisa la autorización en la app; no se reenvía automáticamente al concederla.`}}};"
+      }
     }
   ],
   "connections": {
@@ -160,7 +247,7 @@
       "main": [
         [
           {
-            "node": "Reservar operación",
+            "node": "Preparar comprobación de consentimiento",
             "type": "main",
             "index": 0
           }
@@ -194,6 +281,57 @@
         [
           {
             "node": "Confirmar envío",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Preparar comprobación de consentimiento": {
+      "main": [
+        [
+          {
+            "node": "¿Aviso al cliente?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "¿Aviso al cliente?": {
+      "main": [
+        [
+          {
+            "node": "Consultar consentimiento actual",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Reservar operación",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Consultar consentimiento actual": {
+      "main": [
+        [
+          {
+            "node": "Aplicar consentimiento actual",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Aplicar consentimiento actual": {
+      "main": [
+        [
+          {
+            "node": "Reservar operación",
             "type": "main",
             "index": 0
           }
