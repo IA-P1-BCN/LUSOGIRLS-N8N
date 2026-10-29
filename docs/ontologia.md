@@ -16,6 +16,7 @@ Fuente de verdad: [esquema SQLite](../backend/database.py), [modelos](../backend
 | InformeMensual | período, recaudación, pendiente, nuevos, liquidados, vencidos | Resultado de n8n, no una tabla de la app. Declarar cuándo se mide el pendiente. |
 | Notificación | tipo, destinatario, referencia, resultado del envío | Registro auxiliar propuesto para deduplicación; no existe en la API. Evitar guardar el mensaje completo si no es necesario. |
 | PagoDetectado | identificador del correo, ordenante, importe, concepto, medio, candidato | Dato de trabajo del flujo 03. Solo un pago validado se convierte en Abono mediante la API. |
+| CobroDatafono | terminal, operación estable, fecha, concepto, importe en céntimos, vínculo opcional a Venta | Dato de intercambio de [PF-12](../specs/12-ventas-datafono.md). Reserva `datafono:<terminal>:<operacion>` en PostgreSQL auxiliar. Las nuevas ventas incluyen la referencia en `concepto`; no existe un campo dedicado ni otro endpoint en la app. |
 
 `telefono`, `email` y `talla` pueden ser nulos. Fechas: `YYYY-MM-DD`; importes: EUR. Las fechas de la app no incluyen hora. `estado` solo admite `activo`, `liquidado`, `vencido`; `usado` del vale es un entero.
 
