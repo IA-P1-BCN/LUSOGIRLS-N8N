@@ -60,3 +60,15 @@ Son nombres comunes para que cada integrante cree y seleccione sus credenciales 
 Antes de activar PF-00/PF-09, crear `PF · Webhook tienda` de tipo Header Auth con nombre de cabecera `X-PF-Webhook-Key`. Guardar su valor solo en la credencial y en `N8N_WEBHOOK_KEY` del `.env` de la app; debe ser distinto de `API_KEY`. Nunca ponerlo en frontend o `pf_config`. Ambos workflows se entregan sin historial de ejecución para no persistir la cabecera.
 
 PF-01/PF-02/PF-06 necesitan también `PF · API tienda` para consultar el permiso vigente. Actualizar primero la app con su migración aditiva. Los apartados existentes permanecen sin consentimiento hasta que la tienda registre una autorización real. Guía: [datos personales](../docs/datos-personales.md).
+
+## Puesta en marcha: errores frecuentes
+
+Observados al levantar una instancia local con `dev` en `613a23c` y n8n 2.45.4 (`docs/pruebas/2026-10-29-instancia-local-hu14.md`).
+
+- **Subflujos sin publicar.** PF-00, PF-01 y PF-02 (y PF-04 y PF-06 si se usan) deben estar publicados. Si falta uno, PF-00 falla con «Workflow is not active and cannot be executed» y PF-08 avisa del paso `Ejecutar PF-01` (o el que corresponda).
+- **Credencial del Webhook.** Crear `PF · Webhook tienda` antes de importar `workflows/00-entrada-eventos.json` y `workflows/09-migracion.json`, como indica [HU-14: configuración coordinada](#hu-14-configuración-coordinada); su valor es igual a `N8N_WEBHOOK_KEY` del `.env`. Después, abrir `Recibir eventos` y `Recibir migración` y comprobar que usan esa credencial y no `PF · API tienda`.
+- **Importar sobre un flujo existente.** Vaciar antes el lienzo (Ctrl/Cmd+A y Supr). Si no, los nodos importados se pegan junto a los antiguos.
+- **URL del webhook.** Con PF-00 publicado, `N8N_WEBHOOK_URL=http://n8n:5678/webhook/tienda`; con el listener de prueba, `http://n8n:5678/webhook-test/tienda`. Ver [Webhook: probar y publicar son acciones distintas](#webhook-probar-y-publicar-son-acciones-distintas).
+- **Sin clave no hay eventos.** Si `N8N_WEBHOOK_KEY` está vacía, la app no envía ningún evento y deja en el log de `tienda` «No se pudo avisar a n8n (…): falta configurar la autenticación» (`backend/services/n8n.py`).
+- **Error Workflow.** Los JSON se exportan sin `errorWorkflow`. Elegir PF-08 a mano en **Settings → Error Workflow** de cada flujo de negocio, nunca en el propio PF-08.
+- **PF-06.** Publicarlo activa su calendario diario (`0 9 * * *`, 09:00 Europe/Madrid), que vence por API los apartados fuera de plazo y la app genera sus vales. Sin publicarlo, un evento `apartado.vencido` falla en PF-00 con el mismo error que PF-01 sin publicar, y avisa PF-08. Para probarlo sin publicar, ejecutarlo a mano.

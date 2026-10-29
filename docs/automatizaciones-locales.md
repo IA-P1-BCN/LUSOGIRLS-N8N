@@ -31,6 +31,18 @@ ON CONFLICT(clave) DO UPDATE SET valor=excluded.valor;
 
 `pf_registro` reserva cada clave con exclusión atómica. Estados: `reservado` antes del efecto y `confirmado` después; `revision` para conciliación. Una repetición no vuelve a enviar ni a cobrar. No existe una transacción única que englobe SMTP o la API de la tienda: si se corta la conexión tras el efecto, conservar la reserva y conciliar. Para recuperar un aviso, comprobar primero ejecución y buzón; solo con ausencia de envío demostrada se autoriza una nueva tentativa sobre la misma operación. No borrar reservas automáticamente ni cambiar la clave para forzar un reintento. El documento del cierre queda guardado aunque falle SMTP.
 
+## Puesta en marcha: errores frecuentes
+
+Observados al levantar una instancia local con `dev` en `613a23c` y n8n 2.45.4 (`docs/pruebas/2026-10-29-instancia-local-hu14.md`).
+
+- **Subflujos sin publicar.** PF-00, PF-01 y PF-02 (y PF-04 y PF-06 si se usan) deben estar publicados. Si falta uno, PF-00 falla con «Workflow is not active and cannot be executed» y PF-08 avisa del paso `Ejecutar PF-01` (o el que corresponda).
+- **Credencial del Webhook.** Crear `PF · Webhook tienda` (Header Auth, cabecera `X-PF-Webhook-Key`, valor igual a `N8N_WEBHOOK_KEY` del `.env`) antes de importar `workflows/00-entrada-eventos.json` y `workflows/09-migracion.json`. Después, abrir `Recibir eventos` y `Recibir migración` y comprobar que usan esa credencial y no `PF · API tienda`.
+- **Importar sobre un flujo existente.** Vaciar antes el lienzo (Ctrl/Cmd+A y Supr). Si no, los nodos importados se pegan junto a los antiguos.
+- **URL del webhook.** Con PF-00 publicado, `N8N_WEBHOOK_URL=http://n8n:5678/webhook/tienda`; con el listener de prueba, `http://n8n:5678/webhook-test/tienda`. Aplicar el cambio recreando solo `tienda`. Ver [Webhook: probar y publicar son acciones distintas](../workflows/README.md#webhook-probar-y-publicar-son-acciones-distintas).
+- **Sin clave no hay eventos.** Si `N8N_WEBHOOK_KEY` está vacía, la app no envía ningún evento y deja en el log de `tienda` «No se pudo avisar a n8n (…): falta configurar la autenticación» (`backend/services/n8n.py`).
+- **Error Workflow.** Los JSON se exportan sin `errorWorkflow`. Elegir PF-08 a mano en **Settings → Error Workflow** de cada flujo de negocio, nunca en el propio PF-08.
+- **PF-06.** Publicarlo activa su calendario diario (`0 9 * * *`, 09:00 Europe/Madrid), que vence por API los apartados fuera de plazo y la app genera sus vales. Sin publicarlo, un evento `apartado.vencido` falla en PF-00 con el mismo error que PF-01 sin publicar, y avisa PF-08. Para probarlo sin publicar, ejecutarlo a mano.
+
 ## Laboratorio reproducible
 
 ```bash
