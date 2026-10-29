@@ -14,8 +14,9 @@ Estado inicial: **propuestas pendientes de revisión e implementación**. Escrib
 | PF-07 | [Informe mensual](07-informe-mensual.md) | Medio · HU-08 |
 | PF-08 | [Avisos de error](08-errores.md) | Esencial · HU-05 |
 | PF-09 | [Migración](09-migracion.md) | Medio · HU-10 |
+| PF-10 | [Saldo por Telegram](10-saldo-telegram.md) | Avanzado · HU-11 |
 
-Usar [la plantilla](_plantilla.md) para nuevos flujos. Los niveles Avanzado/Experto quedan en backlog y requieren specs antes de empezar. Mantener el número de flujo del enunciado; PF-00 y PF-09 son convenciones adicionales del equipo.
+Usar [la plantilla](_plantilla.md) para nuevos flujos. Los niveles Avanzado/Experto quedan en backlog y requieren specs antes de empezar. Mantener el número de flujo del enunciado; PF-00, PF-09 y PF-10 son convenciones adicionales del equipo.
 
 ## Acuerdos comunes
 

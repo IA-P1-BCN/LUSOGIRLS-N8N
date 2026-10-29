@@ -313,7 +313,7 @@
         "estado": "liquidado",
         "pendiente": 0.0
       },
-      "blocked_by": "Acordar la representacion de transferencia en la API; no ejecutar el POST hasta resolverlo."
+      "decision": "Fabiana autoriza transferencia como medio propio el 22/10/2026. Se conserva el resultado esperado original."
     },
     {
       "id": "F03-04",
@@ -1040,6 +1040,1007 @@
       "expected": {
         "post_count": 0,
         "ignored_as": "total_manual"
+      }
+    },
+    {
+      "id": "F10-01",
+      "flow": "PF-10",
+      "description": "Un apartado activo del contacto propio",
+      "input": {
+        "update": {
+          "message": {
+            "chat": {
+              "id": 555000111,
+              "type": "private"
+            },
+            "from": {
+              "id": 555000111
+            },
+            "contact": {
+              "phone_number": "34612345001",
+              "user_id": 555000111
+            }
+          }
+        },
+        "config": {
+          "CONTACTO_TIENDA": "Calle Mayor 3"
+        },
+        "apartados": [
+          {
+            "id": 1,
+            "cliente": "Carmen Ruiz",
+            "telefono": "612 345 001",
+            "producto": "Botín piel marrón",
+            "talla": "38",
+            "estado": "activo",
+            "pendiente": 79.9,
+            "fecha_limite": "2030-12-01"
+          },
+          {
+            "id": 2,
+            "cliente": "Jorge Martín",
+            "telefono": "600 000 002",
+            "producto": "Botín piel marrón",
+            "talla": "38",
+            "estado": "activo",
+            "pendiente": 79.9,
+            "fecha_limite": "2030-12-01"
+          },
+          {
+            "id": 3,
+            "cliente": "Ana Sin Teléfono",
+            "telefono": null,
+            "producto": "Botín piel marrón",
+            "talla": "38",
+            "estado": "activo",
+            "pendiente": 79.9,
+            "fecha_limite": "2030-12-01"
+          },
+          {
+            "id": 4,
+            "cliente": "Carmen Ruiz",
+            "telefono": "612 345 001",
+            "producto": "Botín piel marrón",
+            "talla": "38",
+            "estado": "liquidado",
+            "pendiente": 0,
+            "fecha_limite": "2030-12-01"
+          }
+        ]
+      },
+      "expected": {
+        "post_count": 0,
+        "api_gets": 1,
+        "api_query": {
+          "estado": [
+            "activo"
+          ]
+        },
+        "telegram_messages": 1,
+        "text": "Tus apartados pendientes:\n- Botín piel marrón (talla 38): te faltan 79,90 €. Fecha límite: 01/12/2030.\nSi tienes dudas, habla con Calle Mayor 3.",
+        "contact_button": true
+      }
+    },
+    {
+      "id": "F10-02",
+      "flow": "PF-10",
+      "description": "Dos activos del mismo cliente y escape HTML",
+      "input": {
+        "update": {
+          "message": {
+            "chat": {
+              "id": 555000111,
+              "type": "private"
+            },
+            "from": {
+              "id": 555000111
+            },
+            "contact": {
+              "phone_number": "34612345001",
+              "user_id": 555000111
+            }
+          }
+        },
+        "config": {
+          "CONTACTO_TIENDA": "Calle Mayor 3"
+        },
+        "apartados": [
+          {
+            "id": 5,
+            "cliente": "Carmen Ruiz",
+            "telefono": "612345001",
+            "producto": "Sandalia <verano> & playa",
+            "talla": null,
+            "estado": "activo",
+            "pendiente": 20.0,
+            "fecha_limite": "2030-06-15"
+          },
+          {
+            "id": 1,
+            "cliente": "Carmen Ruiz",
+            "telefono": "612 345 001",
+            "producto": "Botín piel marrón",
+            "talla": "38",
+            "estado": "activo",
+            "pendiente": 79.9,
+            "fecha_limite": "2030-12-01"
+          }
+        ]
+      },
+      "expected": {
+        "post_count": 0,
+        "api_gets": 1,
+        "telegram_messages": 1,
+        "text_contains": "- Sandalia &lt;verano&gt; &amp; playa: te faltan 20,00 €",
+        "order": [
+          "Sandalia",
+          "Botín"
+        ],
+        "text_excludes": [
+          "&amp;lt;",
+          "99,90"
+        ],
+        "contact_button": true
+      }
+    },
+    {
+      "id": "F10-03",
+      "flow": "PF-10",
+      "description": "Plazo pasado en un apartado aún activo",
+      "input": {
+        "update": {
+          "message": {
+            "chat": {
+              "id": 555000111,
+              "type": "private"
+            },
+            "from": {
+              "id": 555000111
+            },
+            "contact": {
+              "phone_number": "34612345001",
+              "user_id": 555000111
+            }
+          }
+        },
+        "config": {
+          "CONTACTO_TIENDA": "Calle Mayor 3"
+        },
+        "apartados": [
+          {
+            "id": 6,
+            "cliente": "Carmen Ruiz",
+            "telefono": "612 345 001",
+            "producto": "Botín piel marrón",
+            "talla": "38",
+            "estado": "activo",
+            "pendiente": 15.0,
+            "fecha_limite": "2026-01-15"
+          }
+        ]
+      },
+      "expected": {
+        "post_count": 0,
+        "api_gets": 1,
+        "telegram_messages": 1,
+        "text_contains": "te faltan 15,00 €. Fecha límite: 15/01/2026. El plazo ya ha pasado: habla con Calle Mayor 3.",
+        "contact_button": true
+      }
+    },
+    {
+      "id": "F10-04",
+      "flow": "PF-10",
+      "description": "Un teléfono con dos nombres de cliente",
+      "input": {
+        "update": {
+          "message": {
+            "chat": {
+              "id": 555000111,
+              "type": "private"
+            },
+            "from": {
+              "id": 555000111
+            },
+            "contact": {
+              "phone_number": "34612345001",
+              "user_id": 555000111
+            }
+          }
+        },
+        "config": {
+          "CONTACTO_TIENDA": "Calle Mayor 3"
+        },
+        "apartados": [
+          {
+            "id": 1,
+            "cliente": "Carmen Ruiz",
+            "telefono": "612 345 001",
+            "producto": "Botín piel marrón",
+            "talla": "38",
+            "estado": "activo",
+            "pendiente": 79.9,
+            "fecha_limite": "2030-12-01"
+          },
+          {
+            "id": 7,
+            "cliente": "Luis Ruiz",
+            "telefono": "612 345 001",
+            "producto": "Botín piel marrón",
+            "talla": "38",
+            "estado": "activo",
+            "pendiente": 79.9,
+            "fecha_limite": "2030-12-01"
+          }
+        ]
+      },
+      "expected": {
+        "post_count": 0,
+        "api_gets": 1,
+        "telegram_messages": 1,
+        "text": "No puedo mostrarte estos datos por aquí. Habla con Calle Mayor 3 y lo revisamos.",
+        "contact_button": true
+      }
+    },
+    {
+      "id": "F10-05",
+      "flow": "PF-10",
+      "description": "Sin apartados activos",
+      "input": {
+        "update": {
+          "message": {
+            "chat": {
+              "id": 555000111,
+              "type": "private"
+            },
+            "from": {
+              "id": 555000111
+            },
+            "contact": {
+              "phone_number": "34612345001",
+              "user_id": 555000111
+            }
+          }
+        },
+        "config": {
+          "CONTACTO_TIENDA": "Calle Mayor 3"
+        },
+        "apartados": []
+      },
+      "expected": {
+        "post_count": 0,
+        "api_gets": 1,
+        "telegram_messages": 1,
+        "text": "No encuentro apartados pendientes con tu número. Si crees que es un error, habla con Calle Mayor 3.",
+        "contact_button": true
+      }
+    },
+    {
+      "id": "F10-06",
+      "flow": "PF-10",
+      "description": "Contacto ajeno",
+      "input": {
+        "update": {
+          "message": {
+            "chat": {
+              "id": 555000111,
+              "type": "private"
+            },
+            "from": {
+              "id": 555000111
+            },
+            "contact": {
+              "phone_number": "34612345001",
+              "user_id": 555000999
+            }
+          }
+        },
+        "config": {
+          "CONTACTO_TIENDA": "Calle Mayor 3"
+        },
+        "apartados": [
+          {
+            "id": 1,
+            "cliente": "Carmen Ruiz",
+            "telefono": "612 345 001",
+            "producto": "Botín piel marrón",
+            "talla": "38",
+            "estado": "activo",
+            "pendiente": 79.9,
+            "fecha_limite": "2030-12-01"
+          }
+        ]
+      },
+      "expected": {
+        "post_count": 0,
+        "api_gets": 0,
+        "telegram_messages": 1,
+        "text_starts": "Solo puedo consultar tu propio número.",
+        "contact_button": true
+      }
+    },
+    {
+      "id": "F10-07",
+      "flow": "PF-10",
+      "description": "Contacto sin user_id",
+      "input": {
+        "update": {
+          "message": {
+            "chat": {
+              "id": 555000111,
+              "type": "private"
+            },
+            "from": {
+              "id": 555000111
+            },
+            "contact": {
+              "phone_number": "34612345001"
+            }
+          }
+        },
+        "config": {
+          "CONTACTO_TIENDA": "Calle Mayor 3"
+        },
+        "apartados": [
+          {
+            "id": 1,
+            "cliente": "Carmen Ruiz",
+            "telefono": "612 345 001",
+            "producto": "Botín piel marrón",
+            "talla": "38",
+            "estado": "activo",
+            "pendiente": 79.9,
+            "fecha_limite": "2030-12-01"
+          }
+        ]
+      },
+      "expected": {
+        "post_count": 0,
+        "api_gets": 0,
+        "telegram_messages": 1,
+        "text_starts": "Solo puedo consultar tu propio número.",
+        "contact_button": true
+      }
+    },
+    {
+      "id": "F10-08",
+      "flow": "PF-10",
+      "description": "Chat de grupo con contacto propio",
+      "input": {
+        "update": {
+          "message": {
+            "chat": {
+              "id": -100123,
+              "type": "group"
+            },
+            "from": {
+              "id": 555000111
+            },
+            "contact": {
+              "phone_number": "34612345001",
+              "user_id": 555000111
+            }
+          }
+        },
+        "config": {
+          "CONTACTO_TIENDA": "Calle Mayor 3"
+        },
+        "apartados": [
+          {
+            "id": 1,
+            "cliente": "Carmen Ruiz",
+            "telefono": "612 345 001",
+            "producto": "Botín piel marrón",
+            "talla": "38",
+            "estado": "activo",
+            "pendiente": 79.9,
+            "fecha_limite": "2030-12-01"
+          }
+        ]
+      },
+      "expected": {
+        "post_count": 0,
+        "api_gets": 0,
+        "telegram_messages": 1,
+        "chat_id": -100123,
+        "text_starts": "Por privacidad, las consultas de saldo",
+        "contact_button": false
+      }
+    },
+    {
+      "id": "F10-09",
+      "flow": "PF-10",
+      "description": "Mensaje de inicio",
+      "input": {
+        "update": {
+          "message": {
+            "chat": {
+              "id": 555000111,
+              "type": "private"
+            },
+            "from": {
+              "id": 555000111
+            },
+            "text": "/start"
+          }
+        },
+        "config": {
+          "CONTACTO_TIENDA": "Calle Mayor 3"
+        },
+        "apartados": [
+          {
+            "id": 1,
+            "cliente": "Carmen Ruiz",
+            "telefono": "612 345 001",
+            "producto": "Botín piel marrón",
+            "talla": "38",
+            "estado": "activo",
+            "pendiente": 79.9,
+            "fecha_limite": "2030-12-01"
+          }
+        ]
+      },
+      "expected": {
+        "post_count": 0,
+        "api_gets": 0,
+        "telegram_messages": 1,
+        "text_starts": "Hola. Para ver lo que te falta por pagar",
+        "contact_button": true
+      }
+    },
+    {
+      "id": "F10-10",
+      "flow": "PF-10",
+      "description": "Texto libre",
+      "input": {
+        "update": {
+          "message": {
+            "chat": {
+              "id": 555000111,
+              "type": "private"
+            },
+            "from": {
+              "id": 555000111
+            },
+            "text": "hola, ¿cuánto debo?"
+          }
+        },
+        "config": {
+          "CONTACTO_TIENDA": "Calle Mayor 3"
+        },
+        "apartados": [
+          {
+            "id": 1,
+            "cliente": "Carmen Ruiz",
+            "telefono": "612 345 001",
+            "producto": "Botín piel marrón",
+            "talla": "38",
+            "estado": "activo",
+            "pendiente": 79.9,
+            "fecha_limite": "2030-12-01"
+          }
+        ]
+      },
+      "expected": {
+        "post_count": 0,
+        "api_gets": 0,
+        "telegram_messages": 1,
+        "text_starts": "No he entendido tu mensaje.",
+        "contact_button": true
+      }
+    },
+    {
+      "id": "F10-11",
+      "flow": "PF-10",
+      "description": "Normalización con +",
+      "input": {
+        "update": {
+          "message": {
+            "chat": {
+              "id": 555000111,
+              "type": "private"
+            },
+            "from": {
+              "id": 555000111
+            },
+            "contact": {
+              "phone_number": "+34612345001",
+              "user_id": 555000111
+            }
+          }
+        },
+        "config": {
+          "CONTACTO_TIENDA": "Calle Mayor 3"
+        },
+        "apartados": [
+          {
+            "id": 9,
+            "cliente": "Carmen Ruiz",
+            "telefono": "+34 612 345 001",
+            "producto": "Botín piel marrón",
+            "talla": "38",
+            "estado": "activo",
+            "pendiente": 79.9,
+            "fecha_limite": "2030-12-01"
+          }
+        ]
+      },
+      "expected": {
+        "post_count": 0,
+        "api_gets": 1,
+        "telegram_messages": 1,
+        "text_contains": "te faltan 79,90 €",
+        "contact_button": true
+      }
+    },
+    {
+      "id": "F10-12",
+      "flow": "PF-10",
+      "description": "Sin + y con prefijo",
+      "input": {
+        "update": {
+          "message": {
+            "chat": {
+              "id": 555000111,
+              "type": "private"
+            },
+            "from": {
+              "id": 555000111
+            },
+            "contact": {
+              "phone_number": "34612345001",
+              "user_id": 555000111
+            }
+          }
+        },
+        "config": {
+          "CONTACTO_TIENDA": "Calle Mayor 3"
+        },
+        "apartados": [
+          {
+            "id": 9,
+            "cliente": "Carmen Ruiz",
+            "telefono": "34612345001",
+            "producto": "Botín piel marrón",
+            "talla": "38",
+            "estado": "activo",
+            "pendiente": 79.9,
+            "fecha_limite": "2030-12-01"
+          }
+        ]
+      },
+      "expected": {
+        "post_count": 0,
+        "api_gets": 1,
+        "telegram_messages": 1,
+        "text_contains": "te faltan 79,90 €",
+        "contact_button": true
+      }
+    },
+    {
+      "id": "F10-13",
+      "flow": "PF-10",
+      "description": "00 inicial en la app",
+      "input": {
+        "update": {
+          "message": {
+            "chat": {
+              "id": 555000111,
+              "type": "private"
+            },
+            "from": {
+              "id": 555000111
+            },
+            "contact": {
+              "phone_number": "34612345001",
+              "user_id": 555000111
+            }
+          }
+        },
+        "config": {
+          "CONTACTO_TIENDA": "Calle Mayor 3"
+        },
+        "apartados": [
+          {
+            "id": 9,
+            "cliente": "Carmen Ruiz",
+            "telefono": "0034 612 345 001",
+            "producto": "Botín piel marrón",
+            "talla": "38",
+            "estado": "activo",
+            "pendiente": 79.9,
+            "fecha_limite": "2030-12-01"
+          }
+        ]
+      },
+      "expected": {
+        "post_count": 0,
+        "api_gets": 1,
+        "telegram_messages": 1,
+        "text_contains": "te faltan 79,90 €",
+        "contact_button": true
+      }
+    },
+    {
+      "id": "F10-14",
+      "flow": "PF-10",
+      "description": "9 dígitos que empiezan por 6",
+      "input": {
+        "update": {
+          "message": {
+            "chat": {
+              "id": 555000111,
+              "type": "private"
+            },
+            "from": {
+              "id": 555000111
+            },
+            "contact": {
+              "phone_number": "34612345001",
+              "user_id": 555000111
+            }
+          }
+        },
+        "config": {
+          "CONTACTO_TIENDA": "Calle Mayor 3"
+        },
+        "apartados": [
+          {
+            "id": 9,
+            "cliente": "Carmen Ruiz",
+            "telefono": "612345001",
+            "producto": "Botín piel marrón",
+            "talla": "38",
+            "estado": "activo",
+            "pendiente": 79.9,
+            "fecha_limite": "2030-12-01"
+          }
+        ]
+      },
+      "expected": {
+        "post_count": 0,
+        "api_gets": 1,
+        "telegram_messages": 1,
+        "text_contains": "te faltan 79,90 €",
+        "contact_button": true
+      }
+    },
+    {
+      "id": "F10-15",
+      "flow": "PF-10",
+      "description": "9 dígitos que empiezan por 7",
+      "input": {
+        "update": {
+          "message": {
+            "chat": {
+              "id": 555000111,
+              "type": "private"
+            },
+            "from": {
+              "id": 555000111
+            },
+            "contact": {
+              "phone_number": "34712345001",
+              "user_id": 555000111
+            }
+          }
+        },
+        "config": {
+          "CONTACTO_TIENDA": "Calle Mayor 3"
+        },
+        "apartados": [
+          {
+            "id": 9,
+            "cliente": "Carmen Ruiz",
+            "telefono": "712 345 001",
+            "producto": "Botín piel marrón",
+            "talla": "38",
+            "estado": "activo",
+            "pendiente": 79.9,
+            "fecha_limite": "2030-12-01"
+          }
+        ]
+      },
+      "expected": {
+        "post_count": 0,
+        "api_gets": 1,
+        "telegram_messages": 1,
+        "text_contains": "te faltan 79,90 €",
+        "contact_button": true
+      }
+    },
+    {
+      "id": "F10-16",
+      "flow": "PF-10",
+      "description": "Fijo en la app: no se normaliza",
+      "input": {
+        "update": {
+          "message": {
+            "chat": {
+              "id": 555000111,
+              "type": "private"
+            },
+            "from": {
+              "id": 555000111
+            },
+            "contact": {
+              "phone_number": "34912345678",
+              "user_id": 555000111
+            }
+          }
+        },
+        "config": {
+          "CONTACTO_TIENDA": "Calle Mayor 3"
+        },
+        "apartados": [
+          {
+            "id": 8,
+            "cliente": "Carmen Ruiz",
+            "telefono": "912 345 678",
+            "producto": "Botín piel marrón",
+            "talla": "38",
+            "estado": "activo",
+            "pendiente": 79.9,
+            "fecha_limite": "2030-12-01"
+          }
+        ]
+      },
+      "expected": {
+        "post_count": 0,
+        "api_gets": 1,
+        "telegram_messages": 1,
+        "text": "No encuentro apartados pendientes con tu número. Si crees que es un error, habla con Calle Mayor 3.",
+        "contact_button": true
+      }
+    },
+    {
+      "id": "F10-17",
+      "flow": "PF-10",
+      "description": "Teléfono de Telegram no válido",
+      "input": {
+        "update": {
+          "message": {
+            "chat": {
+              "id": 555000111,
+              "type": "private"
+            },
+            "from": {
+              "id": 555000111
+            },
+            "contact": {
+              "phone_number": "12345",
+              "user_id": 555000111
+            }
+          }
+        },
+        "config": {
+          "CONTACTO_TIENDA": "Calle Mayor 3"
+        },
+        "apartados": [
+          {
+            "id": 1,
+            "cliente": "Carmen Ruiz",
+            "telefono": "612 345 001",
+            "producto": "Botín piel marrón",
+            "talla": "38",
+            "estado": "activo",
+            "pendiente": 79.9,
+            "fecha_limite": "2030-12-01"
+          }
+        ]
+      },
+      "expected": {
+        "post_count": 0,
+        "api_gets": 0,
+        "telegram_messages": 1,
+        "text_starts": "No encuentro apartados pendientes",
+        "contact_button": true
+      }
+    },
+    {
+      "id": "F10-18",
+      "flow": "PF-10",
+      "description": "API con error 401",
+      "input": {
+        "update": {
+          "message": {
+            "chat": {
+              "id": 555000111,
+              "type": "private"
+            },
+            "from": {
+              "id": 555000111
+            },
+            "contact": {
+              "phone_number": "34612345001",
+              "user_id": 555000111
+            }
+          }
+        },
+        "config": {
+          "CONTACTO_TIENDA": "Calle Mayor 3"
+        },
+        "apartados": [
+          {
+            "id": 1,
+            "cliente": "Carmen Ruiz",
+            "telefono": "612 345 001",
+            "producto": "Botín piel marrón",
+            "talla": "38",
+            "estado": "activo",
+            "pendiente": 79.9,
+            "fecha_limite": "2030-12-01"
+          }
+        ],
+        "api_status": 401
+      },
+      "expected": {
+        "post_count": 0,
+        "api_gets": 1,
+        "telegram_messages": 1,
+        "text": "Ahora mismo no puedo consultar tu saldo. Inténtalo más tarde o habla con Calle Mayor 3.",
+        "contact_button": false,
+        "execution_status": "error",
+        "error_node": "Detener por fallo de consulta",
+        "error_message": "Fallo al consultar: API",
+        "pf08_emails": 1,
+        "pf08_email_excludes": [
+          "612345001"
+        ]
+      }
+    },
+    {
+      "id": "F10-19",
+      "flow": "PF-10",
+      "description": "API con error 500",
+      "input": {
+        "update": {
+          "message": {
+            "chat": {
+              "id": 555000111,
+              "type": "private"
+            },
+            "from": {
+              "id": 555000111
+            },
+            "contact": {
+              "phone_number": "34612345001",
+              "user_id": 555000111
+            }
+          }
+        },
+        "config": {
+          "CONTACTO_TIENDA": "Calle Mayor 3"
+        },
+        "apartados": [
+          {
+            "id": 1,
+            "cliente": "Carmen Ruiz",
+            "telefono": "612 345 001",
+            "producto": "Botín piel marrón",
+            "talla": "38",
+            "estado": "activo",
+            "pendiente": 79.9,
+            "fecha_limite": "2030-12-01"
+          }
+        ],
+        "api_status": 500
+      },
+      "expected": {
+        "post_count": 0,
+        "api_gets": 1,
+        "telegram_messages": 1,
+        "text": "Ahora mismo no puedo consultar tu saldo. Inténtalo más tarde o habla con Calle Mayor 3.",
+        "contact_button": false,
+        "execution_status": "error",
+        "error_node": "Detener por fallo de consulta",
+        "error_message": "Fallo al consultar: API",
+        "pf08_emails": 1,
+        "pf08_email_excludes": [
+          "612345001"
+        ]
+      }
+    },
+    {
+      "id": "F10-21a",
+      "flow": "PF-10",
+      "description": "CONTACTO_TIENDA ausente",
+      "input": {
+        "update": {
+          "message": {
+            "chat": {
+              "id": 555000111,
+              "type": "private"
+            },
+            "from": {
+              "id": 555000111
+            },
+            "text": "hola"
+          }
+        },
+        "config": {},
+        "apartados": []
+      },
+      "expected": {
+        "post_count": 0,
+        "api_gets": 0,
+        "telegram_messages": 1,
+        "text_ends": "habla con la tienda.",
+        "text_excludes": [
+          "undefined",
+          "null",
+          "&amp;lt;"
+        ],
+        "contact_button": true
+      }
+    },
+    {
+      "id": "F10-21b",
+      "flow": "PF-10",
+      "description": "CONTACTO_TIENDA solo con espacios",
+      "input": {
+        "update": {
+          "message": {
+            "chat": {
+              "id": 555000111,
+              "type": "private"
+            },
+            "from": {
+              "id": 555000111
+            },
+            "text": "hola"
+          }
+        },
+        "config": {
+          "CONTACTO_TIENDA": "   "
+        },
+        "apartados": []
+      },
+      "expected": {
+        "post_count": 0,
+        "api_gets": 0,
+        "telegram_messages": 1,
+        "text_ends": "habla con la tienda.",
+        "text_excludes": [
+          "undefined",
+          "null",
+          "&amp;lt;"
+        ],
+        "contact_button": true
+      }
+    },
+    {
+      "id": "F10-21c",
+      "flow": "PF-10",
+      "description": "CONTACTO_TIENDA con caracteres HTML",
+      "input": {
+        "update": {
+          "message": {
+            "chat": {
+              "id": 555000111,
+              "type": "private"
+            },
+            "from": {
+              "id": 555000111
+            },
+            "text": "hola"
+          }
+        },
+        "config": {
+          "CONTACTO_TIENDA": "Calle Mayor 3 <local> & tienda"
+        },
+        "apartados": []
+      },
+      "expected": {
+        "post_count": 0,
+        "api_gets": 0,
+        "telegram_messages": 1,
+        "text_ends": "habla con Calle Mayor 3 &lt;local&gt; &amp; tienda.",
+        "text_excludes": [
+          "undefined",
+          "null",
+          "&amp;lt;"
+        ],
+        "contact_button": true
       }
     }
   ]

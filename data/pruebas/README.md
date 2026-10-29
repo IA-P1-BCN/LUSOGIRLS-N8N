@@ -1,6 +1,6 @@
 # Contratos y evidencias de prueba
 
-[contratos.json](contratos.json) contiene **36 casos propuestos para PF-00 a PF-09**. Los importes, fechas y contactos de los payloads son ficticios. Los casos de correo remiten a los archivos de ejemplo ya incluidos en `data/correos/`. No contienen resultados de ejecuciones reales.
+[contratos.json](contratos.json) contiene **58 casos propuestos para PF-00 a PF-10**. Los importes, fechas y contactos de los payloads son ficticios. Los casos de correo remiten a los archivos de ejemplo ya incluidos en `data/correos/`. No contienen resultados de ejecuciones reales.
 
 ## Cómo usar los casos
 
@@ -15,11 +15,11 @@
 
 Las rutas `email_fixture` son relativas a esta carpeta. Hay **nueve** `.eml`. Preparar una copia aislada de la semilla, con saldos y plazos compatibles con [las pruebas de ejemplo](../../backend/tests/test_datos_de_ejemplo.py); no resetear los volúmenes usados por la pareja. Las fechas de la semilla son relativas al día de su primera creación.
 
-F03-03 está bloqueado hasta acordar cómo representar transferencias en la API. El resultado esperado sigue siendo el abono de 12 € que liquida; no marcarlo como pasado por enviar el pago a revisión. F03-10 es una repetición deliberada con el primer pago ya confirmado.
+F03-03 exige un abono de 12 € por transferencia que liquida. La ampliación fue autorizada el 22/10 e implementada en PF-03; no marcar el caso como pasado por enviar el pago a revisión. Las pruebas con IA simulada no sustituyen la validación pendiente con OpenRouter real. F03-10 es una repetición deliberada con el primer pago ya confirmado.
 
 ## Casos adicionales exigidos por las specs
 
-Los 36 casos son un punto de partida, no una cobertura exhaustiva. Añadir en la implementación: concurrencia y reinicio entre pago/marca de deduplicación, timeout después de un POST, reintento de envío, doble ejecución de cierre/migración, error real que dispare PF-08, destinatario ausente y todos los eventos del router. Los resultados esperados deben acordarse antes de ejecutar.
+Los 58 casos son un punto de partida, no una cobertura exhaustiva. Añadir en la implementación: concurrencia y reinicio entre pago/marca de deduplicación, timeout después de un POST, reintento de envío, doble ejecución de cierre/migración, error real que dispare PF-08, destinatario ausente y todos los eventos del router. Los resultados esperados deben acordarse antes de ejecutar.
 
 ## Plantilla de evidencia
 

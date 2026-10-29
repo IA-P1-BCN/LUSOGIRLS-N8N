@@ -1,0 +1,37 @@
+flowchart TB
+  A([Cliente elige un par]) --> B[Dependienta cobra el abono inicial<br/>Mínimo 5 EUR y no mayor que el precio]
+  B --> C[Anota cliente, par, precio, abono<br/>y fecha límite en la libreta: alta + 90 días]
+  C --> D{¿Queda saldo?}
+  D -->|No| Z[Marcar liquidado y entregar el par]
+  D -->|Sí| E[Guardar el par y esperar abonos]
+  E --> F{¿Qué ocurre?}
+  F -->|Abono en tienda| G[Buscar apartado y comprobar<br/>saldo y plazo en la libreta]
+  F -->|Aviso de Bizum o transferencia| H[Marisa lee el correo del banco<br/>e intenta identificar el apartado]
+  H --> I{¿Identificación inequívoca?}
+  I -->|No| J[Preguntar y dejar pendiente<br/>No apuntar un cobro sin aclararlo]
+  J --> E
+  I -->|Sí| G
+  G --> K{¿En plazo y abono<br/>positivo dentro del saldo?}
+  K -->|No| L[Revisar el problema con Marisa<br/>No registrar un abono inválido]
+  L --> E
+  K -->|Sí| M[Anotar abono en libreta<br/>Restar con calculadora e informar al cliente]
+  M --> D
+  F -->|Pasa el plazo sin liquidar| N[Marisa detecta el vencimiento<br/>al revisar la libreta]
+  N --> O[Preparar vale por lo abonado<br/>Liberar zapatos; no devolver efectivo]
+  O --> P([Fin del apartado vencido])
+  Z --> Q([Fin del apartado liquidado])
+
+  subgraph Tareas[Trabajo manual alrededor del apartado]
+    R[Recordatorios: dependen de la memoria<br/>No hay aviso automático a 7 y 1 días]
+    S[Cierre y mes: copiar ventas y abonos<br/>al Excel y sumar con calculadora]
+  end
+  E -.-> R
+  B -.-> S
+  M -.-> S
+
+  classDef manual fill:#fff3d6,stroke:#986600,color:#312700;
+  classDef decision fill:#fff,stroke:#475569,color:#172033;
+  classDef fin fill:#def5e9,stroke:#237552,color:#153d2d;
+  class B,C,E,G,H,J,L,M,N,O,R,S manual;
+  class D,F,I,K decision;
+  class A,P,Q,Z fin;

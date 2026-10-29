@@ -19,6 +19,7 @@ El repositorio del equipo ya está creado y configurado. La rama de trabajo es *
 | --- | --- |
 | [AGENTS.md](AGENTS.md) | Contexto y reglas que sigue el agente |
 | [Ontología](docs/ontologia.md) | Entidades, relaciones y contratos reales de la app |
+| [Mapa del proceso de apartado](docs/mapa-proceso-apartado.md) | Proceso manual y automatizado; fuentes editables, imágenes SVG y PDF |
 | [Especificaciones](specs/README.md) | Diseño de cada automatización antes de implementarla |
 | [Forma de trabajo](docs/forma-de-trabajo.md) | Branches, revisión cruzada y pruebas |
 | [Kanban](docs/kanban.md) | Historias del Projects y reparto existente |

@@ -1,0 +1,439 @@
+{
+  "name": "PF-10 · Saldo por Telegram",
+  "nodes": [
+    {
+      "parameters": {
+        "updates": [
+          "message"
+        ],
+        "additionalFields": {
+          "chatIds": "",
+          "userIds": ""
+        }
+      },
+      "type": "n8n-nodes-base.telegramTrigger",
+      "typeVersion": 1.5,
+      "position": [
+        -240,
+        0
+      ],
+      "id": "d08673ef-8720-42fd-a288-70bd80408a3c",
+      "name": "Recibir mensaje",
+      "webhookId": "7419526b-c57a-4e0f-ae85-c080e1f48b36",
+      "credentials": {
+        "telegramApi": {
+          "name": "PF · Telegram"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// PF-10 · Clasificar mensaje (Run Once for All Items). Único nodo que lee el Update de Telegram.\n// Devuelve {tipo, chat_id, telefono}; nunca copia el texto del cliente.\n\n// Igual en Clasificar mensaje y en Filtrar por teléfono.\nfunction normalizarTelefono(valor) {\n  if (typeof valor !== 'string') return null;\n  const texto = valor.trim();\n  if (texto === '' || !/^\\+?[\\d\\s.\\-()]+$/.test(texto)) return null;\n  const digitos = texto.replace(/\\D/g, '');\n  let e164 = null;\n  if (texto.startsWith('+')) e164 = '+' + digitos;\n  else if (digitos.startsWith('00')) e164 = '+' + digitos.slice(2);\n  else if (digitos.length === 9) e164 = /^[67]/.test(digitos) ? '+34' + digitos : null;\n  else if (digitos.length > 9) e164 = '+' + digitos;\n  if (e164 === null) return null;\n  const numero = e164.slice(1);\n  if (!/^[1-9]\\d{7,14}$/.test(numero)) return null;\n  if (numero.startsWith('34') && numero.length !== 11) return null;\n  return e164;\n}\n\nfunction clasificar(update) {\n  const m = update && update.message;\n  if (!m || !m.chat || !Number.isSafeInteger(m.chat.id)) return null;\n  const chat_id = m.chat.id;\n  if (m.chat.type !== 'private') return { tipo: 'grupo', chat_id, telefono: null };\n  if (m.contact) {\n    const userId = m.contact.user_id;\n    const fromId = m.from && m.from.id;\n    const propio = Number.isSafeInteger(userId) && Number.isSafeInteger(fromId) && userId === fromId;\n    if (!propio) return { tipo: 'contacto_ajeno', chat_id, telefono: null };\n    const telefono = normalizarTelefono(m.contact.phone_number);\n    return telefono\n      ? { tipo: 'contacto_valido', chat_id, telefono }\n      : { tipo: 'telefono_no_valido', chat_id, telefono: null };\n  }\n  const texto = typeof m.text === 'string' ? m.text.trim() : '';\n  if (/^\\/(start|saldo)(@\\w+)?(\\s|$)/i.test(texto)) return { tipo: 'inicio', chat_id, telefono: null };\n  return { tipo: 'no_entendido', chat_id, telefono: null };\n}\n\nconst resultado = clasificar($input.first().json);\nreturn resultado ? [{ json: resultado }] : [];\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -32,
+        0
+      ],
+      "id": "ac143aa0-deeb-438a-b99a-225f34e27fd2",
+      "name": "Clasificar mensaje"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT max(valor) FILTER (WHERE clave = 'API_BASE_URL') AS api_base_url,\n       coalesce(replace(replace(replace(btrim(max(valor) FILTER (WHERE clave = 'CONTACTO_TIENDA')),\n         '&', '&amp;'), '<', '&lt;'), '>', '&gt;'), '') AS contacto_html\nFROM pf_config WHERE clave IN ('API_BASE_URL', 'CONTACTO_TIENDA');\n",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.8,
+      "position": [
+        192,
+        0
+      ],
+      "id": "bf6250aa-73ae-43be-aa23-a14ebbf9dcb4",
+      "name": "Leer configuración",
+      "alwaysOutputData": false,
+      "credentials": {
+        "postgres": {
+          "name": "PF · Registro auxiliar"
+        }
+      },
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 4
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $('Clasificar mensaje').first().json.tipo }}",
+                    "rightValue": "grupo",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "id": "e8a34344-8eb5-4d6f-8c91-203c6ebe5ca5"
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "grupo"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 4
+                },
+                "conditions": [
+                  {
+                    "id": "824b4eb2-8000-4cab-8c0c-25c8a0223b64",
+                    "leftValue": "={{ $('Clasificar mensaje').first().json.tipo }}",
+                    "rightValue": "contacto_valido",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals",
+                      "name": "filter.operator.equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "contacto_valido"
+            }
+          ]
+        },
+        "options": {
+          "fallbackOutput": "extra",
+          "renameFallbackOutput": "resto"
+        }
+      },
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.5,
+      "position": [
+        384,
+        -160
+      ],
+      "id": "4db30c37-0c54-4f2e-a603-135c8cfe5338",
+      "name": "Decidir respuesta"
+    },
+    {
+      "parameters": {
+        "url": "={{ $('Leer configuración').first().json.api_base_url }}/api/apartados?estado=activo",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "options": {
+          "timeout": 10000
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        672,
+        -352
+      ],
+      "id": "10429ecc-9071-4e73-b0ca-56c7395df9e1",
+      "name": "Consultar apartados activos",
+      "alwaysOutputData": true,
+      "credentials": {
+        "httpHeaderAuth": {
+          "name": "PF · API tienda"
+        }
+      },
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "// PF-10 · Filtrar por teléfono (Run Once for All Items).\n// Entrada: los apartados activos de la API, o un item vacío si la lista llega vacía (Always Output Data).\n// Devuelve un solo item {chat_id, tipo, apartados}; tipo es saldo, no_encontrado o identidad_dudosa.\n\n// Igual en Clasificar mensaje y en Filtrar por teléfono.\nfunction normalizarTelefono(valor) {\n  if (typeof valor !== 'string') return null;\n  const texto = valor.trim();\n  if (texto === '' || !/^\\+?[\\d\\s.\\-()]+$/.test(texto)) return null;\n  const digitos = texto.replace(/\\D/g, '');\n  let e164 = null;\n  if (texto.startsWith('+')) e164 = '+' + digitos;\n  else if (digitos.startsWith('00')) e164 = '+' + digitos.slice(2);\n  else if (digitos.length === 9) e164 = /^[67]/.test(digitos) ? '+34' + digitos : null;\n  else if (digitos.length > 9) e164 = '+' + digitos;\n  if (e164 === null) return null;\n  const numero = e164.slice(1);\n  if (!/^[1-9]\\d{7,14}$/.test(numero)) return null;\n  if (numero.startsWith('34') && numero.length !== 11) return null;\n  return e164;\n}\n\nfunction nombreComparable(nombre) {\n  return typeof nombre === 'string' ? nombre.trim().replace(/\\s+/g, ' ').toLowerCase() : '';\n}\n\nfunction filtrar(apartados, telefono) {\n  if (typeof telefono !== 'string') return { tipo: 'no_encontrado', apartados: [] };\n  const propios = apartados.filter((a) =>\n    a && Number.isSafeInteger(a.id) && a.estado === 'activo' && normalizarTelefono(a.telefono) === telefono);\n  if (propios.length === 0) return { tipo: 'no_encontrado', apartados: [] };\n  if (new Set(propios.map((a) => nombreComparable(a.cliente))).size > 1) return { tipo: 'identidad_dudosa', apartados: [] };\n  // Solo lo que necesita Redactar respuesta: ni nombre, ni teléfono, ni id.\n  return {\n    tipo: 'saldo',\n    apartados: propios.map((a) => ({ producto: a.producto, talla: a.talla, pendiente: a.pendiente, fecha_limite: a.fecha_limite })),\n  };\n}\n\nconst { chat_id, telefono } = $('Clasificar mensaje').first().json;\nreturn [{ json: { chat_id, ...filtrar($input.all().map((item) => item.json), telefono) } }];\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        928,
+        -240
+      ],
+      "id": "13fd2a8a-70c3-4af6-8e09-331b9c2301f1",
+      "name": "Filtrar por teléfono"
+    },
+    {
+      "parameters": {
+        "jsCode": "// PF-10 · Redactar respuesta (Run Once for All Items).\n// Llega desde Decidir respuesta (inicio, no_entendido, contacto_ajeno, telefono_no_valido)\n// o desde Filtrar por teléfono (saldo, no_encontrado, identidad_dudosa). Devuelve {chat_id, texto}.\n// Los importes y las fechas se muestran tal como los da la app: sin sumar, sin redondear, sin new Date().\n\nconst escapar = (t) => t == null ? '' : String(t).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');\n\n// contacto_html llega ya escapado de Leer configuración: se usa tal cual.\nfunction contactoTexto(c) {\n  return typeof c === 'string' && c.trim() !== '' ? c : 'la tienda';\n}\n\n// Euros de la API (número con hasta dos decimales) a céntimos enteros, sin coma flotante.\nfunction centimos(valor) {\n  if (typeof valor !== 'number') return null;\n  const texto = String(valor);\n  if (!/^\\d+(\\.\\d{1,2})?$/.test(texto)) return null;\n  const [enteros, decimales = ''] = texto.split('.');\n  return Number(enteros) * 100 + Number(decimales.padEnd(2, '0'));\n}\n\nfunction importe(c) {\n  const euros = String(Math.floor(c / 100)).replace(/\\B(?=(\\d{3})+(?!\\d))/g, '.');\n  return `${euros},${String(c % 100).padStart(2, '0')} €`;\n}\n\n// AAAA-MM-DD a DD/MM/AAAA partiendo el texto.\nfunction fecha(iso) {\n  const m = typeof iso === 'string' ? /^(\\d{4})-(\\d{2})-(\\d{2})$/.exec(iso) : null;\n  return m ? `${m[3]}/${m[2]}/${m[1]}` : null;\n}\n\nfunction redactar(tipo, apartados, contactoHtml, hoy) {\n  const contacto = contactoTexto(contactoHtml);\n  const derivar = `No puedo mostrarte estos datos por aquí. Habla con ${contacto} y lo revisamos.`;\n  switch (tipo) {\n    case 'inicio':\n      return 'Hola. Para ver lo que te falta por pagar, pulsa «Consultar mi saldo» y comparte tu contacto. Solo usamos tu número para buscar tus apartados en esta consulta.';\n    case 'no_entendido':\n      return `No he entendido tu mensaje. Para consultar tu saldo, pulsa «Consultar mi saldo». Para cualquier otra cosa, habla con ${contacto}.`;\n    case 'contacto_ajeno':\n      return 'Solo puedo consultar tu propio número. Pulsa «Consultar mi saldo» para compartir tu contacto.';\n    case 'telefono_no_valido':\n    case 'no_encontrado':\n      return `No encuentro apartados pendientes con tu número. Si crees que es un error, habla con ${contacto}.`;\n    case 'identidad_dudosa':\n      return derivar;\n    case 'saldo': {\n      const lineas = [];\n      for (const a of apartados) {\n        const c = centimos(a.pendiente);\n        const limite = fecha(a.fecha_limite);\n        const producto = typeof a.producto === 'string' ? a.producto.trim() : '';\n        // Un dato que no encaja invalida toda la respuesta: un saldo parcial es peor que derivar.\n        if (c === null || limite === null || producto === '') return derivar;\n        const talla = a.talla == null || String(a.talla).trim() === '' ? '' : ` (talla ${escapar(a.talla)})`;\n        const vencido = hoy > a.fecha_limite ? ` El plazo ya ha pasado: habla con ${contacto}.` : '';\n        lineas.push(`- ${escapar(producto)}${talla}: te faltan ${importe(c)}. Fecha límite: ${limite}.${vencido}`);\n      }\n      if (lineas.length === 0) return derivar;\n      return `Tus apartados pendientes:\\n${lineas.join('\\n')}\\nSi tienes dudas, habla con ${contacto}.`;\n    }\n    default:\n      throw new Error('Tipo de respuesta no previsto');\n  }\n}\n\nconst clasificacion = $('Clasificar mensaje').first().json;\nconst filtrado = $('Filtrar por teléfono').isExecuted ? $('Filtrar por teléfono').first().json : null;\nconst contactoHtml = $('Leer configuración').first().json.contacto_html;\nconst hoy = $now.setZone('Europe/Madrid').toISODate();\nconst { tipo, apartados } = filtrado || { tipo: clasificacion.tipo, apartados: [] };\nreturn [{ json: { chat_id: clasificacion.chat_id, texto: redactar(tipo, apartados, contactoHtml, hoy) } }];\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1152,
+        -240
+      ],
+      "id": "970dc65f-2d20-46ec-8673-4f926699d2b4",
+      "name": "Redactar respuesta"
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $json.chat_id }}",
+        "text": "={{ $json.texto }}",
+        "replyMarkup": "replyKeyboard",
+        "replyKeyboard": {
+          "rows": [
+            {
+              "row": {
+                "buttons": [
+                  {
+                    "text": "Consultar mi saldo",
+                    "additionalFields": {
+                      "request_contact": true
+                    }
+                  }
+                ]
+              }
+            }
+          ]
+        },
+        "replyKeyboardOptions": {},
+        "additionalFields": {
+          "appendAttribution": false,
+          "parse_mode": "HTML"
+        }
+      },
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        1312,
+        -240
+      ],
+      "id": "d155c50f-2278-4657-99cc-cb174b506880",
+      "name": "Enviar respuesta",
+      "webhookId": "aba36472-0553-4033-b057-0a205e9ed834",
+      "credentials": {
+        "telegramApi": {
+          "name": "PF · Telegram"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $('Clasificar mensaje').first().json.chat_id }}",
+        "text": "Por privacidad, las consultas de saldo solo se atienden en un chat privado con este bot.",
+        "additionalFields": {
+          "appendAttribution": false,
+          "parse_mode": "HTML"
+        }
+      },
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        704,
+        -176
+      ],
+      "id": "cd4bfcfa-23da-4b45-acca-2ebd735b0853",
+      "name": "Enviar aviso de grupo",
+      "webhookId": "36977e19-7d98-4d6f-83ac-b7f9b57628da",
+      "credentials": {
+        "telegramApi": {
+          "name": "PF · Telegram"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// PF-10 · Redactar aviso de fallo (Run Once for All Items).\n// Llega por la salida de error de Leer configuración o de Consultar apartados activos.\n// Devuelve un solo item {chat_id, texto, origen}; nunca copia el error ni datos del cliente.\n\n// contacto_html llega ya escapado de Leer configuración: se usa tal cual.\nfunction contactoTexto(c) {\n  return typeof c === 'string' && c.trim() !== '' ? c : 'la tienda';\n}\n\nfunction redactarAviso(contactoHtml, apiEjecutada) {\n  return {\n    texto: `Ahora mismo no puedo consultar tu saldo. Inténtalo más tarde o habla con ${contactoTexto(contactoHtml)}.`,\n    origen: apiEjecutada ? 'API' : 'configuración',\n  };\n}\n\n// first(0): la salida Success de Leer configuración. Sin índice, n8n lee la salida conectada a este\n// nodo, que es la de Error y está vacía cuando lo que falla es la API.\nlet contactoHtml;\ntry {\n  contactoHtml = $('Leer configuración').first(0)?.json?.contacto_html;\n} catch (e) {\n  contactoHtml = undefined;\n}\nconst { chat_id } = $('Clasificar mensaje').first().json;\nreturn [{ json: { chat_id, ...redactarAviso(contactoHtml, $('Consultar apartados activos').isExecuted) } }];\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        960,
+        -432
+      ],
+      "id": "7c4d45b6-aabc-4832-853d-1d2ada0f9a18",
+      "name": "Redactar aviso de fallo"
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $json.chat_id }}",
+        "text": "={{ $json.texto }}",
+        "additionalFields": {
+          "appendAttribution": false,
+          "parse_mode": "HTML"
+        }
+      },
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        1184,
+        -432
+      ],
+      "id": "d97ac40c-93b7-478f-9167-4bce20c3e965",
+      "name": "Avisar fallo al cliente",
+      "webhookId": "5399a95b-4650-49a3-9133-c42c869b2620",
+      "credentials": {
+        "telegramApi": {
+          "name": "PF · Telegram"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "errorMessage": "=Fallo al consultar: {{ $('Redactar aviso de fallo').first().json.origen }}"
+      },
+      "type": "n8n-nodes-base.stopAndError",
+      "typeVersion": 1,
+      "position": [
+        1408,
+        -432
+      ],
+      "id": "61eab14a-3d1d-4ddd-be46-6cf6eef8bd26",
+      "name": "Detener por fallo de consulta"
+    }
+  ],
+  "connections": {
+    "Recibir mensaje": {
+      "main": [
+        [
+          {
+            "node": "Clasificar mensaje",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Clasificar mensaje": {
+      "main": [
+        [
+          {
+            "node": "Leer configuración",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Leer configuración": {
+      "main": [
+        [
+          {
+            "node": "Decidir respuesta",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Redactar aviso de fallo",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Decidir respuesta": {
+      "main": [
+        [
+          {
+            "node": "Enviar aviso de grupo",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Consultar apartados activos",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Redactar respuesta",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Consultar apartados activos": {
+      "main": [
+        [
+          {
+            "node": "Filtrar por teléfono",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Redactar aviso de fallo",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Filtrar por teléfono": {
+      "main": [
+        [
+          {
+            "node": "Redactar respuesta",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Redactar respuesta": {
+      "main": [
+        [
+          {
+            "node": "Enviar respuesta",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Redactar aviso de fallo": {
+      "main": [
+        [
+          {
+            "node": "Avisar fallo al cliente",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Avisar fallo al cliente": {
+      "main": [
+        [
+          {
+            "node": "Detener por fallo de consulta",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "timezone": "Europe/Madrid",
+    "saveDataErrorExecution": "all",
+    "saveDataSuccessExecution": "none",
+    "callerPolicy": "workflowsFromSameOwner"
+  },
+  "active": false,
+  "pinData": {}
+}
