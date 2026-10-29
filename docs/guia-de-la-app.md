@@ -81,7 +81,7 @@ Por eso la carpeta se llama `frontend/` y no `templates/`: no son plantillas que
 | Abono inicial | Mínimo **5 €** al crear el apartado, y no más que el precio |
 | Plazo | `fecha_limite` = fecha del apartado **+ 90 días** |
 | Abonos | De cualquier importe, pero **nunca más de lo que falta** |
-| Formas de pago | `efectivo`, `tarjeta` o `bizum` |
+| Formas de pago | `efectivo`, `tarjeta`, `bizum` o `transferencia` (ampliación de HU-03 autorizada el 22/10/2026) |
 | Abonar | Solo si el apartado está `activo` **y** no ha pasado su fecha límite |
 
 Si una regla no se cumple, la app responde con un error `422` y un mensaje claro (ver [errores](#errores-que-puede-devolver-la-api)).
