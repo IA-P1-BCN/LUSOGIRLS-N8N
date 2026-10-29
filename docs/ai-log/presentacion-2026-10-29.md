@@ -7,3 +7,7 @@
 - **Verificación:** enlaces relativos existentes, cabecera PDF y número de páginas, inspección visual de la vista renderizada y `git diff --check`. Esto no es una ejecución de n8n ni acredita un ensayo humano.
 - **Límites:** mostrar solamente las funciones configuradas y probadas en la instancia elegida. Retrospectiva, demo en pareja, auditoría y vídeo siguen requiriendo participación humana. No se inventan observaciones ni feedback de la otra pareja.
 - **Datos de demo:** añadido el [script de carga por API](../../scripts/preparar_demo_api.py) y [su contrato/evidencia](../demo-por-api.md). Carga real en tienda aislada sin webhook: tres apartados con estados y saldos comprobados, una venta y un vale. La segunda ejecución se rechazó antes de crear datos. No se usó SQLite directamente ni se tocó la tienda compartida.
+
+## 29/10 · Actualización para revisión
+
+Fabiana pide revisar sus PRs. Durante la revisión Rita aprueba e integra #41 y #44. Se incorpora `dev` (`b312d68`) y se actualiza el estado del guion para reflejar ambas integraciones; #42 y #45 mantienen su revisión pendiente. Se regenera el PDF de ocho páginas con el mismo renderizador local y se inspecciona la vista del texto actualizado. Pasan los 14 enlaces relativos, sintaxis del script y `git diff --check`. No se repite la carga de datos de demo ni se presenta esta revisión como un ensayo humano.

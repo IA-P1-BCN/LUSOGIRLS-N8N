@@ -6,7 +6,7 @@ Las intervenciones están en español para poder ensayarlas y decirlas directame
 
 ## Preparación antes de ensayar
 
-**Estado contrastado el 29/10 en GitHub:** `dev` está en `b416e2a`; PF-00 a PF-10 están exportados. PF-01 y PF-02 ya están integrados mediante las PR #37 y #38, y PF-03 mediante #36. Las diez historias Must están Done en Projects. HU-13/datáfono (#42), DOC-03/mapa (#41) y la entrega parcial de CI/HU-16 (#44) siguen en revisión; HU-14 está entregada en la [PR #45](https://github.com/IA-P1-BCN/LUSOGIRLS-N8N/pull/45), pendiente de revisión e integración. **Ensayar el recorrido completo con Rita en una única instancia antes de mostrarlo.** La integración en Git no acredita por sí sola la configuración de esa instancia.
+**Estado contrastado el 29/10 en GitHub:** `dev` está en `b312d68`; PF-00 a PF-10 están exportados. PF-01 y PF-02 ya están integrados mediante las PR #37 y #38, y PF-03 mediante #36. Las diez historias Must están Done en Projects. DOC-03/mapa (#41) y la entrega parcial de CI/HU-16 (#44) ya están aprobadas por Rita e integradas. HU-13/datáfono (#42) sigue en revisión; HU-14 está entregada en la [PR #45](https://github.com/IA-P1-BCN/LUSOGIRLS-N8N/pull/45), pendiente de revisión e integración. **Ensayar el recorrido completo con Rita en una única instancia antes de mostrarlo.** La integración en Git no acredita por sí sola la configuración de esa instancia.
 
 **Fabiana prepara:** app, n8n, Mailpit, PF-00, abonos por correo, cierre diario, errores y bitácora. **Rita prepara:** confirmación de apartado, recibo de abono, cambio de mensaje al liquidar y sus exportaciones. **Las dos:** ensayar una vez con cronómetro y acordar qué nivel pueden demostrar realmente.
 
