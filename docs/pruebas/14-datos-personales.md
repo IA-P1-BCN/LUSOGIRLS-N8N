@@ -1,6 +1,6 @@
 # Evidencia HU-14 · 28–29/10/2026
 
-Rama `seguridad/14-datos-personales`, sobre `dev` de la PR #36. Laboratorio n8n 2.44.5, PostgreSQL, GreenMail, Mailpit y tiendas temporales propias. Datos ficticios; sin publicación en la instancia habitual. Los archivos privados de `tests/n8n/.estado/` conservan los informes originales, incluidos los fallidos.
+Rama `seguridad/14-datos-personales`, integrada con `dev` `b416e2a` (incluida la PR #43) mediante `d6ee6a1`. Laboratorio n8n 2.44.5, PostgreSQL, GreenMail, Mailpit y tiendas temporales propias. Datos ficticios; sin publicación en la instancia habitual. Los archivos privados de `tests/n8n/.estado/` conservan los informes originales, incluidos los fallidos.
 
 ## Autenticación y consentimiento · 28/10
 
@@ -53,3 +53,25 @@ Se importaron y exportaron inactivos PF-00, PF-01, PF-02, PF-03, PF-06, PF-08 y 
 - JSON, sintaxis de nodos Code, enlaces y `git diff --check` se verifican antes de entregar la PR.
 
 Pendientes revisión humana e integración. El acceso público de la app, HTTPS y las copias de seguridad pertenecen a HU-16; estas pruebas no acreditan esos requisitos ni cumplimiento legal integral.
+
+## Repetición sobre dev actualizado · 29/10
+
+Tras integrar PF-10 de Rita se conservaron en PF-08 los nombres de flujo y pasos de ambas ramas. La suite completa de HU-14 volvió a pasar: **16/16**, registro `qa_privacidad_0c30c3864ba84fd7a9ab201499049470`, ejecuciones **481–511**. Alta sin/con permiso: 482–485; recibo con permiso: 487; revocación: 489; evento atrasado: 491; fallo cerrado de la consulta: 495; recordatorios/vales: 506 y repetición 511. La tienda compartida se preservó; la tienda temporal quedó detenida y las copias desactivadas.
+
+Después del merge también pasaron 6/6 tests de código, 3/3 de credenciales y la validación estática de los once workflows. Los 47 archivos de la entrega se comprobaron contra los secretos locales sin imprimirlos; no hubo coincidencias ni enlaces locales rotos.
+
+La retención/exportación volvió a pasar después de esa corrida sobre `dev` actualizado. PF-00 `mDzBFOqP4ov0m55C` y PF-09 `8wYAEwhdj2di4b1o` no conservaron historial; las siete exportaciones inactivas se verificaron de nuevo. PF-08 final: `Ip77K2SCpM7MlMdE`, SHA-256 `66b5614af3f62761c7ca1833e4a58fa06763db644bc74d2b62e3783d60750699`.
+
+Se completó además la [comparación controlada de dos modelos gratuitos](../comparativa-modelos-gratuitos.md), ejecuciones 538–555. Dots3-Note: nueve respuestas correctas. LFM2.5: tres respuestas correctas y seis rechazos HTTP 429; estos últimos no se presentan como errores de extracción. No se modificó el modelo del workflow entregable.
+
+## Regresión de cierre, informe y errores · 29/10
+
+Las suites existentes se ejecutaron con el adaptador local de revisión que asigna una base PostgreSQL, tienda y credencial SMTP propias a cada prueba. Conserva las expectativas y contrasta por API los totales reales; no recrea la tienda compartida.
+
+| Flujo | Ejecuciones | Resultado |
+| --- | --- | --- |
+| PF-08 | 512–518 | Error Trigger real, dos contratos con repeticiones y SMTP fallido sin recursión: PASS |
+| PF-05 | 519–525 | Cierre normal, sin movimientos, fuente fallida y API real: PASS. API real: ventas 184,00 €, abonos 89,90 € |
+| PF-07 | 526–532 | Mes normal, cambio de año sin movimientos, fuente fallida y API real: PASS. API real: ventas 4.128,30 €, abonos 199,50 €, total 4.327,80 € |
+
+Registros conservados: `qa_review_3bb840919fe54886bd364da0161b6556`, `qa_review_c4577e89a91c41d9bc9967ee11b71ae9` y `qa_review_c846e6c6e03b4501a46c602b405ba665`. Limpieza verificada en los tres; las exportaciones resultantes de PF-05/PF-07/PF-08 son idénticas a las anteriores al test. No se esperó a las horas de los calendarios: las copias usan disparadores y reloj de prueba.
