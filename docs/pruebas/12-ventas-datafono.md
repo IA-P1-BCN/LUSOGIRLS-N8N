@@ -42,3 +42,29 @@ El primer intento, ejecución 390, falló antes de descargar/importar: el client
 Ver [configuración y comandos](../12-ventas-datafono.md) y [spec](../../specs/12-ventas-datafono.md). Las pruebas unitarias ejecutan el código de los nodos exportados: CSV con comillas/BOM/CRLF, precisión monetaria, referencias, datos inválidos y vínculos ambiguos. Los resultados de n8n son los de la tabla, no se infieren de los tests unitarios.
 
 Faltan aprobación humana de Rita y merge. La fuente real del CSV, sus credenciales y el horario de disponibilidad se configuran antes de publicar. El flujo no garantiza entrega exactamente una vez ni corrige automáticamente cierres ya enviados.
+
+## Repetición tras integrar PF-10 · 29/10/2026
+
+Versión comprobada: `eed0f76` más `dev` en `b416e2a`, con los conflictos resueltos conservando PF-10 y PF-12 en PF-08 y en el índice de specs. PF-12 conserva exactamente su JSON; SHA-256 `5c819180223253effb98e409686748e8a691c3d63d4ab57ee67b23e08205b294`.
+
+`python3 tests/n8n/test_12.py` termina con código 0 y **13/13 PASS**. Datos del día anterior, 28/10, en una tienda y base auxiliar propias (`qa_datafono_dbda4e45372f44d69f7f507e6ad1f066`). Los resultados esperados son los de los casos anteriores; observados:
+
+| Caso | Ejecución n8n | Observado |
+| --- | --- | --- |
+| Dos operaciones distintas y fila repetida | 556 | Dos ventas nuevas; un duplicado ignorado |
+| Repetición reordenada | 557 | Cero nuevas; dos existentes |
+| Posible venta manual sin referencia | 558 | Revisión; ninguna venta nueva |
+| Venta manual vinculada | 559 | Reconocida sin duplicar |
+| Otra referencia para la misma venta | 560 | Revisión; sin escritura |
+| Importe cambiado de referencia confirmada | 561 | Revisión; sin escritura |
+| Filas inválidas y referencia conflictiva | 562 | Seis incidencias; sin escritura |
+| CSV vacío válido | 563 | Informe con cero nuevas |
+| Cabecera inválida | 564; PF-08: 565 | Error antes de escribir y aviso local |
+| Respuesta perdida tras crear | 566 | Una venta; un solo POST; revisión |
+| Conciliación tras respuesta perdida | 567 | Venta reconocida; ningún segundo POST |
+| Dos ejecuciones concurrentes | 568 y 569 | Una sola venta |
+| Schedule Trigger acelerado en copia | 570 | Ejecución automática correcta |
+
+Comprobación adicional de PF-08 con payloads ficticios y su trigger sustituido por un webhook de prueba: **571** conserva `PF-10 · Saldo por Telegram` / `Filtrar por teléfono`; **572** conserva `PF-12 · Ventas del datáfono` / `Validar CSV del datáfono`. Ambos correos llegan a Mailpit y omiten el texto crudo del error. No se consulta Telegram. La ejecución 565 sí prueba el Error Trigger automático real.
+
+PF-12 y PF-08 se recuperan de n8n inactivos y sin diferencias con las exportaciones revisadas; no contienen IDs de credenciales. La tienda compartida conserva ID, montajes y estado. Los contenedores propios se detienen y el laboratorio acaba sin workflows activos. Evidencias locales conservadas en `tests/n8n/.estado/qa_datafono_dbda4e45372f44d69f7f507e6ad1f066/` (`evidencia.json` y `revision-pf08.json`, ignorados por Git). También pasan **6/6 tests de código** y **3/3 tests de credenciales**. Aprobación de Rita pendiente.

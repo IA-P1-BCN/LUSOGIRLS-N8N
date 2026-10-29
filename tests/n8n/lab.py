@@ -99,7 +99,7 @@ def fixture_flow(path,error_id=None,clock=None,model_mock=False):
         for n in flow['nodes']:
             if n['name']=='Fijar período':
                 n['parameters']['jsCode']=n['parameters']['jsCode'].replace("const hoy=$now.setZone('Europe/Madrid');",replacement)
-    triggers=[n for n in flow['nodes'] if n['type'].split('.')[-1] in ('errorTrigger','scheduleTrigger','executeWorkflowTrigger','manualTrigger','emailReadImap')]
+    triggers=[n for n in flow['nodes'] if n['type'].split('.')[-1] in ('errorTrigger','scheduleTrigger','executeWorkflowTrigger','manualTrigger','emailReadImap','telegramTrigger')]
     trigger=triggers[0]
     for other in triggers[1:]:
         flow['nodes'].remove(other); flow['connections'].pop(other['name'],None)

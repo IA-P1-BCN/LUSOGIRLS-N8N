@@ -11,3 +11,11 @@
 ## 29/10 · Revisión de Rita
 
 Se incorpora `dev` con HU-03 integrada (`f4e8894`). El conflicto de PF-08 se resuelve conservando la lista de pasos de PF-12, que ya incluye los pasos restaurados de PF-02. La guía exige crear la credencial de fuente antes de importar y comprobar su asignación en el nodo de descarga. No cambia la lógica de importación. Validación: JSON legible, unión de pasos preservada, tests del parser y credenciales y `git diff --check`. La nueva aprobación sigue pendiente.
+
+## 29/10 · Compatibilidad con PF-10 y nueva comprobación
+
+Fabiana pide revisar sus PRs y corregir los pendientes para Rita. La integración de PF-10 en `dev` (`b416e2a`) introduce nuevos conflictos en el índice de specs y PF-08. Se conservan ambas specs, los nombres PF-10/PF-12 y la unión de los 109 pasos permitidos, sin cambiar la lógica de importación del datáfono ni el bot de Rita.
+
+Se repiten los 13 escenarios de integración con API real, n8n y Mailpit (556–570), los seis tests del código y los tres de credenciales: todos pasan. Dos fixtures adicionales de PF-08 verifican la identificación de PF-10/PF-12 y la omisión del error crudo en los correos (571–572). PF-12 y PF-08 se importan/exportan sin diferencias. La tienda compartida se conserva y el laboratorio termina sin workflows activos. Ver [evidencia](../pruebas/12-ventas-datafono.md).
+
+Herramientas: Codex, Git/GitHub CLI, Python, Node, Docker y n8n local. El comprobador auxiliar de PF-08 necesitó leer el detalle de cada workflow porque el listado REST no incluye `nodes`; se corrigió antes de ejecutar sus fixtures. No se llama a modelos externos ni se envían mensajes fuera de Mailpit. Sigue pendiente la aprobación humana; no se publica en producción.
