@@ -11,3 +11,9 @@
 - **Integración:** `dev` `b416e2a` incorporado; se conservan PF-10 y sus nombres de pasos en PF-08. La repetición completa de HU-14 pasó 16/16 (481–511), además de PF-08 (512–518), PF-05 (519–525), PF-07 (526–532) y la retención/exportación final.
 - **Comparativa pendiente de la daily:** [dos modelos y nueve entradas idénticas](../comparativa-modelos-gratuitos.md), ejecuciones 538–555; doce respuestas correctas con coste reportado cero y seis HTTP 429 conservados como fallos técnicos. No se atribuye a esos fallos una extracción incorrecta ni se oculta su efecto en disponibilidad.
 - **Estado:** entrega de PR hacia `dev`; requiere aprobación humana de Rita. Sin publicación en la instancia habitual. La daily #27 ya estaba publicada y cerrada al retomar; su cierre no cierra HU-14.
+
+## 29/10 · Revisión previa a Rita
+
+Fabiana pide revisar sus PRs y corregir pendientes. Se incorpora `dev` en `b312d68`, con DOC-03 y CI ya aprobados, sin cambios adicionales en backend ni workflows de HU-14. Se repiten 20/20 tests de backend en un contenedor sin red con bases temporales y código de esta rama montado en lectura, y 6/6 tests de código de consentimiento/minimización. Pasan el validador de los once workflows, 67 enlaces relativos, sintaxis Python/JSON y `git diff --check`. El Python del equipo no tenía pytest; se utiliza la imagen local de la tienda, que incluye las dependencias del proyecto.
+
+Esta comprobación no añade ejecuciones de n8n ni llamadas a OpenRouter; conserva las evidencias y el fallo de transporte documentados arriba. La aprobación humana sigue pendiente.
