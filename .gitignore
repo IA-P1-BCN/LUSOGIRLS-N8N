@@ -1,5 +1,8 @@
 .env
 .env.local
+.env.*
+!.env.example
+.DS_Store
 tests/n8n/.estado/
 __pycache__/
 *.db
