@@ -7,3 +7,7 @@
 - **Correcciones:** cliente de pruebas elegía una credencial por tipo y perdía el aislamiento; se conserva la corrección por nombre ya propuesta en #36 y se verifica el ID elegido. n8n añadió metadata `webhookId` al SMTP; se conservó y se verificó otra exportación sin diferencias.
 - **Pruebas observadas:** seis pruebas de código y trece escenarios en n8n con API real, concurrencia, venta manual, CSV inválido, fallo después de registrar y conciliación sin segundo POST; ejecuciones 392–406. [Evidencia](../pruebas/12-ventas-datafono.md).
 - **Límites:** fuente real por configurar, datos ficticios y Mailpit local; el horario nocturno real no se ha esperado durante 24 horas (Schedule Trigger probado con un minuto en copia). Aprobación y merge pendientes.
+
+## 29/10 · Revisión de Rita
+
+Se incorpora `dev` con HU-03 integrada (`f4e8894`). El conflicto de PF-08 se resuelve conservando la lista de pasos de PF-12, que ya incluye los pasos restaurados de PF-02. La guía exige crear la credencial de fuente antes de importar y comprobar su asignación en el nodo de descarga. No cambia la lógica de importación. Validación: JSON legible, unión de pasos preservada, tests del parser y credenciales y `git diff --check`. La nueva aprobación sigue pendiente.

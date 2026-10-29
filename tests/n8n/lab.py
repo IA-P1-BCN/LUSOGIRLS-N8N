@@ -43,6 +43,10 @@ def prepare_credentials():
         found=next((c for c in existing if c['name']==name and c['type']==kind),None)
         if found is None: found=request('/rest/credentials',{'name':name,'type':kind,'data':data})['data']
         result[kind]={'id':found['id'],'name':name}
+    result.pop('PF · Modelo extracción',None)
+    for credential in existing:
+        if credential['name']=='PF · Modelo extracción' and credential['type']=='openRouterApi':
+            result[credential['name']]={'id':credential['id'],'name':credential['name']}
     (STATE/'credentials.json').write_text(json.dumps(result))
     return result
 
@@ -77,9 +81,17 @@ def sql(query):
     result=subprocess.run(command,check=True,capture_output=True,text=True)
     return result.stdout.strip()
 
-def fixture_flow(path,error_id=None,clock=None):
+def fixture_flow(path,error_id=None,clock=None,model_mock=False):
     from test_08 import webhook, activate
     flow=json.loads(Path(path).read_text())
+    if model_mock:
+        for n in flow['nodes']:
+            if n['name']=='Extraer pago':
+                n['parameters']['url']='http://simulador:8080/chat/completions'
+                n['parameters'].pop('authentication',None)
+                n['parameters'].pop('genericAuthType',None)
+                n['parameters'].pop('nodeCredentialType',None)
+                n.pop('credentials',None)
     if clock:
         from datetime import date
         frozen=date.fromisoformat(clock)
@@ -102,11 +114,11 @@ def fixture_flow(path,error_id=None,clock=None):
     activate(installed)
     return installed,hook['parameters']['path']
 
-def invoke(flow,path,payload):
+def invoke(flow,path,payload,timeout=45):
     from test_08 import executions, finished
     previous=[e['id'] for e in executions(flow['id'])]
     request('/webhook/'+path,payload)
-    return finished(flow['id'],previous)
+    return finished(flow['id'],previous,timeout=timeout)
 
 def message_count():
     return request('/api/v1/messages',base='http://127.0.0.1:18025')['total']

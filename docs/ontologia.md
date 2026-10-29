@@ -64,4 +64,4 @@ Crear un apartado inserta el abono inicial, pero solo emite `apartado.creado`. E
 - No hay clave de idempotencia en los POST. El flujo necesita un registro auxiliar y una estrategia de conciliación ante resultados inciertos.
 - No hay `fecha_liquidacion`: para el informe mensual se deriva de los abonos del apartado liquidado. El vencimiento usa la fecha del vale.
 - No hay consentimiento ni identidad de Telegram en la app: no suponerlos a partir de un email o nombre. HU-11 y HU-14 necesitan una ampliación de diseño antes de implementarse.
-- `transferencia` no está en `FORMAS_PAGO` de [config.py](../backend/config.py). Resolver esta discrepancia con el requisito antes de automatizar ese tipo de cobro.
+- `transferencia` se añade a `FORMAS_PAGO` de [config.py](../backend/config.py) por autorización de Fabiana el 22/10/2026. Se conserva como medio propio, incluidos los desgloses; no modifica los pagos históricos.

@@ -8,8 +8,8 @@ Cada noche a las 00:01 (`Europe/Madrid`), PF-12 descarga el CSV del día anterio
 
 1. Leer la [spec](../specs/12-ventas-datafono.md). La fuente debe entregar el formato acordado: no se ha conectado un banco o terminal real.
 2. Aplicar [registro.sql](../infra/registro.sql) y [12-datafono.sql](../infra/12-datafono.sql) en PostgreSQL auxiliar. Nunca ejecutarlos contra SQLite de la tienda.
-3. Importar [PF-12](../workflows/12-ventas-datafono.json) y la exportación actualizada de [PF-08](../workflows/08-errores.json), sin publicar. Elegir PF-08 como Error Workflow de PF-12 en la instancia.
-4. Seleccionar las cuatro credenciales y configurar `pf_config` según las tablas. Probar con datos ficticios, revisar con Rita y obtener autorización expresa antes de publicar.
+3. Crear primero `PF · Fuente datáfono` de tipo Header Auth con la cabecera y el secreto propios del servidor CSV. No reutilizar `PF · API tienda`. Importar [PF-12](../workflows/12-ventas-datafono.json) y la exportación actualizada de [PF-08](../workflows/08-errores.json), sin publicar. Elegir PF-08 como Error Workflow de PF-12 en la instancia.
+4. Después de importar, abrir **Descargar CSV del datáfono** y comprobar expresamente que usa **PF · Fuente datáfono**: n8n puede asignar otra credencial Header Auth si la requerida falta, y eso enviaría la clave de la tienda al servidor CSV. Seleccionar las cuatro credenciales y configurar `pf_config` según las tablas. Probar con datos ficticios, revisar con Rita y obtener autorización expresa antes de publicar.
 
 | Credencial | Configuración privada |
 | --- | --- |
