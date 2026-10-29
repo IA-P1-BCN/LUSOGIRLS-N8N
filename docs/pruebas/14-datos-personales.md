@@ -75,3 +75,25 @@ Las suites existentes se ejecutaron con el adaptador local de revisión que asig
 | PF-07 | 526–532 | Mes normal, cambio de año sin movimientos, fuente fallida y API real: PASS. API real: ventas 4.128,30 €, abonos 199,50 €, total 4.327,80 € |
 
 Registros conservados: `qa_review_3bb840919fe54886bd364da0161b6556`, `qa_review_c4577e89a91c41d9bc9967ee11b71ae9` y `qa_review_c846e6c6e03b4501a46c602b405ba665`. Limpieza verificada en los tres; las exportaciones resultantes de PF-05/PF-07/PF-08 son idénticas a las anteriores al test. No se esperó a las horas de los calendarios: las copias usan disparadores y reloj de prueba.
+
+## Correcciones solicitadas por Rita en #45 · 29/10
+
+Versión: `1db4e4e` más `dev` `af43d74` (incluida #42), con el conflicto de PF-08 resuelto conservando los doce nombres de flujo y la unión de 113 pasos permitidos. PF-10 y PF-12 se mantienen. El resto del código de `Preparar aviso` coincide con ambas ramas.
+
+Rita identificó un 404 en la tercera parte de `test_06.py`: la conciliación sustituía el fixture y dejaba de existir el permiso del apartado 9004. Antes de invocar el evento se carga explícitamente su consentimiento ficticio. Se conservan las expectativas, la comprobación de cero avisos duplicados y la lógica del workflow PF-06.
+
+Se ejecuta completo `tests/n8n/test_06.py` (la suite invocada por `python3 tests/n8n/lab.py 06`) mediante el adaptador local de aislamiento, asignándole base PostgreSQL, tienda con `SEED=1`, simulador y credenciales de prueba propios. Se conserva Mailpit local y el webhook de la tienda de prueba está vacío. **7/7 PASS; proceso terminado con código 0**, incluida la cuarta parte contra la API real.
+
+| Caso | Ejecución | Resultado observado |
+| --- | --- | --- |
+| F06-01, recordatorio de siete días | 573 | Un correo; ningún POST de vencimiento |
+| F06-02, aviso ya confirmado | 574 | Cero correos y cero POST |
+| F06-03, fecha límite hoy | 575 | Cero correos y cero POST |
+| F06-04, vencimiento y vale | 576 | Un POST al simulador; dos avisos con el vale del fixture |
+| Conciliación y correo ausente | 577 | Un aviso a Marisa; vale antiguo fuera de ventana |
+| Evento después del calendario | 578 | Consulta de consentimiento correcta; cero correos duplicados |
+| API real con semilla | 579 | Tres apartados vencidos con sus vales y siete avisos nuevos; estados, importes y claves contrastados por API |
+
+PF-08 se importa y recupera de n8n sin diferencias con el JSON corregido. Las doce exportaciones pasan el validador estático; los contratos JSON y la sintaxis del test son válidos. La tienda compartida conserva ID, montajes y estado. La tienda/simulador propios quedan detenidos y no quedan workflows activos en el laboratorio. Informes conservados en `tests/n8n/.estado/qa_review_d6ebf969f1364dc8870468b4a1136bd0/06-evidencia.json` y `limpieza.json` (ignorados por Git).
+
+No se repiten las suites que Rita ya verificó ni se llama a OpenRouter. La observación opcional sobre reintentos ante 401 queda fuera de esta corrección. Sigue pendiente la nueva aprobación humana de Rita.

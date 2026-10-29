@@ -17,3 +17,11 @@
 Fabiana pide revisar sus PRs y corregir pendientes. Se incorpora `dev` en `b312d68`, con DOC-03 y CI ya aprobados, sin cambios adicionales en backend ni workflows de HU-14. Se repiten 20/20 tests de backend en un contenedor sin red con bases temporales y código de esta rama montado en lectura, y 6/6 tests de código de consentimiento/minimización. Pasan el validador de los once workflows, 67 enlaces relativos, sintaxis Python/JSON y `git diff --check`. El Python del equipo no tenía pytest; se utiliza la imagen local de la tienda, que incluye las dependencias del proyecto.
 
 Esta comprobación no añade ejecuciones de n8n ni llamadas a OpenRouter; conserva las evidencias y el fallo de transporte documentados arriba. La aprobación humana sigue pendiente.
+
+## 29/10 · Request changes de Rita: PF-06 y conflicto con #42
+
+Fabiana pide atender los comentarios de la compañera. Rita confirma sus regresiones y señala dos bloqueos: el fixture de consentimiento perdido antes del evento de PF-06 y el conflicto de PF-08 tras integrar #42. Se repone el permiso ficticio del apartado del evento antes de invocarlo y se fusiona `dev` (`af43d74`), conservando los nombres PF-10/PF-12 y los pasos de ambas ramas. No se cambian expectativas ni lógica de PF-06.
+
+Resultado: suite completa PF-06 **7/7 PASS**, ejecuciones **573–579**, incluida la pasada contra API real con semilla (tres vencimientos y siete avisos nuevos). Adaptador local con base, tienda y simulador propios; tienda compartida preservada y recursos de prueba detenidos al terminar. PF-08 importado/exportado sin diferencias; doce JSON válidos. [Evidencia](../pruebas/14-datos-personales.md#correcciones-solicitadas-por-rita-en-45--2910). Herramientas: Codex, Git/GitHub CLI, Python, Docker y n8n; sin llamadas a proveedores de IA.
+
+La observación de 401 estaba marcada como opcional y no bloqueante por Rita; se conserva para una revisión separada. La aprobación de esta versión sigue pendiente y no se publica en producción.

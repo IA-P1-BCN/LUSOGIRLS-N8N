@@ -137,6 +137,8 @@ try:
     # ---------- 3. Evento apartado.vencido desde PF-00 ----------
     flow_ev, endpoint_ev = fixture_flow(flujo_evento(), error_id)
     try:
+        # La conciliación anterior sustituyó el fixture; el evento necesita su permiso vigente.
+        request('/__fixture', {'consentimientos': {str(evento['body']['datos']['apartado']['id']): True}}, base=SIM)
         antes = message_count()
         run = invoke(flow_ev, endpoint_ev, evento); ok(run)
         assert nuevos(antes) == [], 'El evento del mismo vale no debe repetir avisos'
