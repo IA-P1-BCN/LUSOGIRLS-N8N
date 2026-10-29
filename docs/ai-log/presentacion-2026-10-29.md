@@ -6,3 +6,4 @@
 - **Entrega:** Markdown editable y PDF de ocho páginas. Generación local con Marked, Puppeteer y Chrome; sin envío del documento a un servicio externo.
 - **Verificación:** enlaces relativos existentes, cabecera PDF y número de páginas, inspección visual de la vista renderizada y `git diff --check`. Esto no es una ejecución de n8n ni acredita un ensayo humano.
 - **Límites:** mostrar solamente las funciones configuradas y probadas en la instancia elegida. Retrospectiva, demo en pareja, auditoría y vídeo siguen requiriendo participación humana. No se inventan observaciones ni feedback de la otra pareja.
+- **Datos de demo:** añadido el [script de carga por API](../../scripts/preparar_demo_api.py) y [su contrato/evidencia](../demo-por-api.md). Carga real en tienda aislada sin webhook: tres apartados con estados y saldos comprobados, una venta y un vale. La segunda ejecución se rechazó antes de crear datos. No se usó SQLite directamente ni se tocó la tienda compartida.

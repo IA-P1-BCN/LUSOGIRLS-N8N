@@ -6,7 +6,7 @@ Las intervenciones están en español para poder ensayarlas y decirlas directame
 
 ## Preparación antes de ensayar
 
-**Estado contrastado el 29/10 en GitHub:** `dev` está en `b416e2a`; PF-00 a PF-10 están exportados. PF-01 y PF-02 ya están integrados mediante las PR #37 y #38, y PF-03 mediante #36. Las diez historias Must están Done en Projects. HU-13/datáfono (#42), DOC-03/mapa (#41) y la entrega parcial de CI/HU-16 (#44) siguen en revisión; HU-14 se está preparando y no está integrada. **Ensayar el recorrido completo con Rita en una única instancia antes de mostrarlo.** La integración en Git no acredita por sí sola la configuración de esa instancia.
+**Estado contrastado el 29/10 en GitHub:** `dev` está en `b416e2a`; PF-00 a PF-10 están exportados. PF-01 y PF-02 ya están integrados mediante las PR #37 y #38, y PF-03 mediante #36. Las diez historias Must están Done en Projects. HU-13/datáfono (#42), DOC-03/mapa (#41) y la entrega parcial de CI/HU-16 (#44) siguen en revisión; HU-14 está entregada en la [PR #45](https://github.com/IA-P1-BCN/LUSOGIRLS-N8N/pull/45), pendiente de revisión e integración. **Ensayar el recorrido completo con Rita en una única instancia antes de mostrarlo.** La integración en Git no acredita por sí sola la configuración de esa instancia.
 
 **Fabiana prepara:** app, n8n, Mailpit, PF-00, abonos por correo, cierre diario, errores y bitácora. **Rita prepara:** confirmación de apartado, recibo de abono, cambio de mensaje al liquidar y sus exportaciones. **Las dos:** ensayar una vez con cronómetro y acordar qué nivel pueden demostrar realmente.
 
@@ -19,7 +19,7 @@ docker compose -f docker-compose.yml -f infra/automatizaciones.compose.yml up -d
 - [ ] Elegir una sola instancia. El laboratorio existente usa [app](http://localhost:18000), [n8n](http://localhost:15678) y [Mailpit](http://localhost:18025). La instancia habitual usa 8000/5678 y necesita su propio Mailpit en 8025. No mezclar la app de una instancia con las credenciales, rutas y correo de la otra. Las copias de aceptación se desactivan al terminar; configurar y ensayar expresamente la copia de demo.
 - [ ] Confirmar los destinos reales de PF-00 para PF-01 y PF-02. Comprobar que la URL del webhook de la app corresponde al modo de ejecución elegido. En modo de prueba, volver a poner el listener a la escucha antes de cada evento.
 - [ ] Seleccionar PF-08 en **Settings → Error workflow** de cada flujo de negocio y verificarlo en la instancia. Los JSON exportados de esta copia no traen esa asociación configurada. PF-08 no debe apuntar a sí mismo.
-- [ ] Preparar un destinatario ficticio en Mailpit y comprobar creación, correo, abono final y segundo correo. Usar el mismo apartado durante todo el recorrido.
+- [ ] Preparar un destinatario ficticio en Mailpit y comprobar creación, correo, abono final y segundo correo. Usar el mismo apartado durante todo el recorrido. Para enseñar estados por separado, están preparados [los datos por API](demo-por-api.md) en la tienda aislada del puerto 28001; esa carga no envía correos.
 - [ ] Revisar nombres de nodos y disposición de izquierda a derecha. Tener los JSON finales en `workflows/`.
 - [ ] Buscar `key` y `token` en los JSON y revisar las coincidencias en privado: un nombre de campo o una referencia de credencial no equivale a una clave expuesta. Comprobar también nodos y prompts.
 - [ ] Comprobar que `.env` está ignorado y que no está entre los archivos versionados. No abrir sus valores durante la presentación.
@@ -165,7 +165,7 @@ Si preguntan por un fallo del correo:
 
 > En los abonos por correo, la IA extrae datos como ordenante, importe y concepto. Después el flujo valida los datos y consulta la API. Las reglas determinan si se puede registrar el pago. Los saldos del apartado vienen de la app. Para acceder a un dato usamos expresiones directas, como `{{ $json.body.datos.email }}`, cuando ese es el formato de entrada del nodo.
 
-**Mostrar:** los nodos de PF-03 y [su spec](../specs/03-abonos-distancia.md). La [evidencia de #36](https://github.com/IA-P1-BCN/LUSOGIRLS-N8N/blob/efe35cf/docs/pruebas/03-abonos-distancia.md) documenta diez escenarios con OpenRouter real del 28/10, incluida repetición sin duplicado. Es una prueba anterior, no la demo actual. Diferenciar esta extracción del agente usado para desarrollar el proyecto.
+**Mostrar:** los nodos de PF-03 y [su spec](../specs/03-abonos-distancia.md). La [evidencia de #36](https://github.com/IA-P1-BCN/LUSOGIRLS-N8N/blob/efe35cf/docs/pruebas/03-abonos-distancia.md) documenta diez escenarios con OpenRouter real del 28/10, incluida repetición sin duplicado. Es una prueba anterior, no la demo actual. La [comparativa del 29/10](https://github.com/IA-P1-BCN/LUSOGIRLS-N8N/blob/e0bf1c4/docs/comparativa-modelos-gratuitos.md) usa los mismos nueve correos: Dots3-Note produjo nueve respuestas correctas; LFM2.5 produjo tres y seis HTTP 429. No llamar errores de extracción a esos límites del proveedor. Diferenciar esta extracción del agente usado para desarrollar el proyecto.
 
 ### Fabiana responde sobre el agente de desarrollo
 
