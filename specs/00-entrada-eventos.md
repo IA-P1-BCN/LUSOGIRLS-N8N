@@ -39,7 +39,7 @@ La app no reenvía avisos perdidos: pruebas con listener abierto; procesos peri�
 
 ## Credenciales y variables
 
-Credencial `PF · Registro auxiliar` para leer los IDs reales de la propia instancia en `pf_config`. Sin credencial en el Webhook del demo local, compatible con el emisor actual. `N8N_WEBHOOK_URL` debe coincidir con modo test o publicado. La autenticación de HU-14 necesita una spec y cambios coordinados en ambos extremos.
+Credencial `PF · Registro auxiliar` para leer los IDs reales de la propia instancia en `pf_config`. Header Auth `PF · Webhook tienda`, cabecera `X-PF-Webhook-Key`, coincide con `N8N_WEBHOOK_KEY` del emisor. `N8N_WEBHOOK_URL` debe coincidir con modo test o publicado. Sin clave o con clave incorrecta se rechaza antes de ejecutar. No se conserva historial de ejecución de PF-00 para evitar persistir esa cabecera; ver [HU-14](14-datos-personales.md).
 
 ## Pruebas y aceptación
 

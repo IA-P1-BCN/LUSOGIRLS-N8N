@@ -1,6 +1,6 @@
 """MODELO · Apartado: los datos de un apartado de zapatos y las reglas para crearlo y vencerlo."""
 
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta, timezone
 
 import config
 import database
@@ -19,7 +19,7 @@ def obtener(apartado_id):
     encontrados = database.consultar(SELECT + " WHERE a.id = ? GROUP BY a.id", apartado_id)
     if not encontrados:
         raise NoEncontrado("Apartado no encontrado")
-    return encontrados[0]
+    return encontrados[0] | {'consentimiento_notificaciones': bool(encontrados[0]['consentimiento_notificaciones'])}
 
 
 def listar(estado=None, q="", limite=None, desplazamiento=0):
@@ -37,7 +37,8 @@ def listar(estado=None, q="", limite=None, desplazamiento=0):
     if limite:
         sql += " LIMIT ? OFFSET ?"
         args += [limite, desplazamiento]
-    return database.consultar(sql, *args), total
+    filas = database.consultar(sql, *args)
+    return [fila | {'consentimiento_notificaciones': bool(fila['consentimiento_notificaciones'])} for fila in filas], total
 
 
 def contar_por_estado():
@@ -46,7 +47,7 @@ def contar_por_estado():
             "vencido": cuentas.get("vencido", 0), "total": sum(cuentas.values())}
 
 
-def crear(cliente, telefono, email, producto, talla, precio, abono_inicial, forma_pago, fecha=None):
+def crear(cliente, telefono, email, producto, talla, precio, abono_inicial, forma_pago, fecha=None, consentimiento_notificaciones=False):
     fecha = fecha or date.today()
     if precio <= 0:
         raise ReglaDeNegocio("El precio debe ser mayor que 0")
@@ -58,16 +59,34 @@ def crear(cliente, telefono, email, producto, talla, precio, abono_inicial, form
         raise ReglaDeNegocio(f"Forma de pago no válida: {forma_pago}")
     with database.conectar() as con:
         cur = con.execute(
-            "INSERT INTO apartados (fecha, cliente, telefono, email, producto, talla, precio, fecha_limite)"
-            " VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+            "INSERT INTO apartados (fecha, cliente, telefono, email, producto, talla, precio, fecha_limite, consentimiento_notificaciones, consentimiento_actualizado)"
+            " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
             (fecha.isoformat(), cliente.strip(), telefono, email, producto.strip(), talla, precio,
-             (fecha + timedelta(days=config.PLAZO_DIAS)).isoformat()))
+             (fecha + timedelta(days=config.PLAZO_DIAS)).isoformat(), int(consentimiento_notificaciones),
+             datetime.now(timezone.utc).isoformat() if consentimiento_notificaciones else None))
         apartado_id = cur.lastrowid
         con.execute("INSERT INTO abonos (apartado_id, fecha, importe, forma_pago) VALUES (?, ?, ?, ?)",
                     (apartado_id, fecha.isoformat(), abono_inicial, forma_pago))
         if abono_inicial == precio:
             con.execute("UPDATE apartados SET estado = 'liquidado' WHERE id = ?", (apartado_id,))
     return obtener(apartado_id)
+
+
+def consultar_consentimiento(apartado_id):
+    filas = database.consultar(
+        'SELECT id AS apartado_id, consentimiento_notificaciones, consentimiento_actualizado FROM apartados WHERE id = ?',
+        apartado_id)
+    if not filas:
+        raise NoEncontrado('Apartado no encontrado')
+    return filas[0] | {'consentimiento_notificaciones': bool(filas[0]['consentimiento_notificaciones'])}
+
+
+def actualizar_consentimiento(apartado_id, consentimiento_notificaciones):
+    consultar_consentimiento(apartado_id)
+    with database.conectar() as con:
+        con.execute('UPDATE apartados SET consentimiento_notificaciones = ?, consentimiento_actualizado = ? WHERE id = ?',
+                    (int(consentimiento_notificaciones), datetime.now(timezone.utc).isoformat(), apartado_id))
+    return consultar_consentimiento(apartado_id)
 
 
 def vencer(apartado_id):

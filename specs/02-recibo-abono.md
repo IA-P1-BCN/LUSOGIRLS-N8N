@@ -42,8 +42,14 @@ Importe ausente, estado desconocido o saldo contradictorio: incidencia sin recib
 
 [F02-01, F02-02 y F02-03](../data/pruebas/contratos.json): pago parcial, liquidación y dos pagos de igual importe con distinto acumulado.
 
-- [x] Cada abono nuevo produce un recibo con el importe y saldo que da la app.
+- [x] Cada abono nuevo con consentimiento vigente produce un recibo con el importe y saldo que da la app.
 - [x] Liquidación: mensaje de recogida y pendiente cero.
 - [x] Repetir el mismo evento no duplica; dos pagos distintos de igual importe sí producen dos recibos.
 - [x] Sin email se avisa a la tienda; errores técnicos quedan trazados sin secretos.
 - [ ] Evidencias y JSON exportado revisados por la compañera.
+
+## Ampliación HU-14 · 28/10/2026
+
+El correo del cliente exige `consentimiento_notificaciones === true` en el evento/detalle y en `GET /api/apartados/{id}/consentimiento`, consultado antes de reservar el envío con `PF · API tienda`. False/ausente produce aviso a Marisa; una revocación posterior produce un aviso mínimo a la tienda; un error de la consulta impide el envío y activa PF-08. No basta con que exista email. La API actualizada debe desplegarse antes que el flujo. La consulta y SMTP no son una transacción atómica; una revocación simultánea al envío ya iniciado no puede retirarlo.
+
+Modificar el permiso no dispara avisos históricos. Las claves existentes se mantienen; un evento reenviado manualmente con permiso y correo ya válidos puede alcanzar una clave de destinatario aún no confirmada. No usar reenvíos masivos como mecanismo de alta del consentimiento. Pruebas nuevas: [HU-14](../docs/pruebas/14-datos-personales.md); los contratos F01/F02/F06 declaran permiso ficticio explícito para los casos positivos.

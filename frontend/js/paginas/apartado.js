@@ -55,6 +55,15 @@ async function pintar() {
             <p class="muted" style="margin:6px 0 0">${porcentaje}% pagado · Apartado el ${esc(a.fecha)} · Fecha límite ${esc(a.fecha_limite)} ${plazo(a)}</p>
           </div>
           ${a.vale ? `<div class="alert alert-ok" style="margin:0">${icono("vale")} <span>Vale de compra <strong>${esc(a.vale.codigo)}</strong> por ${euros(a.vale.importe)}${a.vale.usado ? " (usado)" : ""}</span></div>` : ""}
+          <form id="formulario-consentimiento" class="stack" aria-label="Permiso de notificaciones">
+            <h3>Notificaciones por correo</h3>
+            <label style="display:flex;align-items:flex-start;gap:10px">
+              <input style="width:auto;margin-top:4px" type="checkbox" name="autorizado" ${a.consentimiento_notificaciones ? "checked" : ""}>
+              <span>El cliente autoriza los avisos de este apartado.</span>
+            </label>
+            <span class="hint">${a.consentimiento_actualizado ? `Permiso actualizado: ${esc(new Date(a.consentimiento_actualizado).toLocaleString("es-ES"))}.` : "No se ha registrado autorización."} Guardar el permiso no reenvía mensajes anteriores.</span>
+            <button type="submit" class="btn btn-ghost">Guardar permiso</button>
+          </form>
         </section>
         <section class="card" aria-label="Abonos">
           <div class="card-body" style="padding-bottom:0"><h2>Abonos</h2></div>
@@ -69,6 +78,19 @@ async function pintar() {
       ${panelDeAbono(a)}
     </div>`;
   document.getElementById("formulario-abono")?.addEventListener("submit", registrar);
+  document.getElementById("formulario-consentimiento").addEventListener("submit", async (evento) => {
+    evento.preventDefault();
+    const boton = evento.target.querySelector("button[type=submit]");
+    boton.disabled = true;
+    try {
+      await api.cambiarConsentimiento(id, new FormData(evento.target).get("autorizado") === "on");
+      await pintar();
+      mostrarAviso("ok", "Permiso de notificaciones actualizado");
+    } catch (e) {
+      mostrarAviso("error", e.message);
+      boton.disabled = false;
+    }
+  });
   avisoDeLaDireccion();
 }
 

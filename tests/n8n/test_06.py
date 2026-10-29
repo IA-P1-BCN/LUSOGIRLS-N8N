@@ -152,7 +152,7 @@ try:
     dias = {a['id']: (date.fromisoformat(a['fecha_limite']) - hoy).days for a in activos}
     a_vencer = [a for a in activos if dias[a['id']] < 0]
     limite_hoy = [a for a in activos if dias[a['id']] == 0]
-    esperadas = {f"{a['id']}:{a['fecha_limite']}:{dias[a['id']]}:{'email' if a['email'] else 'marisa'}"
+    esperadas = {f"{a['id']}:{a['fecha_limite']}:{dias[a['id']]}:{'email' if a['email'] and a.get('consentimiento_notificaciones') is True else 'marisa'}"
                  for a in activos if dias[a['id']] in (7, 1)}
     previas = confirmadas()
     flow, endpoint = fixture_flow(path, error_id)
@@ -172,7 +172,7 @@ try:
         if desde <= v['fecha'] <= str(hoy):
             d = tienda('/api/apartados/%d' % v['apartado_id'])
             esperadas.add(f"vale:{v['codigo']}:marisa")
-            if d['email']:
+            if d['email'] and d.get('consentimiento_notificaciones') is True:
                 esperadas.add(f"vale:{v['codigo']}:cliente")
     nuevas = confirmadas() - previas
     assert nuevas == esperadas - previas, (sorted(nuevas), sorted(esperadas - previas))

@@ -49,3 +49,7 @@ Decididas por Rita al construir el flujo. Evidencia en [docs/pruebas/09-migracio
 - Idempotencia: clave `migracion:<archivo>:<fila>` reservada en `pf_registro` antes de cada POST. Las operaciones se recorren de una en una; un abono solo se reserva cuando su apartado está `confirmado` y toma su id. Una clave existente se salta sin llamar a la API.
 - Fallos (opción 2A): POST sin reintentos. Un error o timeout deja la clave en `revision` con la respuesta; una caída entre el POST y la confirmación la deja en `reservado`. El correo de resultado lista ambos casos para conciliar a mano.
 - Mejora pendiente (opción 2B): conciliación automática tras un timeout, buscando la operación en la API. Se descartó por calendario y porque emparejar por cliente, fecha e importe puede confundir operaciones iguales.
+
+## Autenticación HU-14
+
+`POST /webhook/migracion` exige Header Auth `PF · Webhook tienda` (`X-PF-Webhook-Key`). Esto no sustituye `modo`, `autorizada` ni la habilitación del entorno de carga. Las importaciones no conceden consentimiento: las altas históricas quedan false. PF-09 no conserva historial de ejecución para evitar guardar la cabecera secreta y los CSV; el registro auxiliar y el informe mantienen la trazabilidad funcional.

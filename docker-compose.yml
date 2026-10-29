@@ -8,6 +8,7 @@ services:
       - DB_PATH=/data/tienda.db
       - API_KEY=${API_KEY}
       - N8N_WEBHOOK_URL=${N8N_WEBHOOK_URL}
+      - N8N_WEBHOOK_KEY=${N8N_WEBHOOK_KEY:-}
       - SEED=${SEED:-1}
     volumes:
       - tienda_data:/data

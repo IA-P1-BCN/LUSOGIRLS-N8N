@@ -7,12 +7,19 @@ import urllib.error
 import subprocess
 import uuid
 import time
+import secrets
 
 ROOT = Path(__file__).resolve().parents[2]
 STATE = Path(__file__).with_name('.estado')
 STATE.mkdir(exist_ok=True)
 ENV = dict(line.split('=',1) for line in Path(__file__).with_name('.env.local').read_text().splitlines() if '=' in line)
 SECRET = ENV['PF_TEST_SECRET']
+# Se conserva solo en el .env ignorado; es distinto de la clave de la API.
+if not ENV.get('PF_TEST_WEBHOOK_SECRET'):
+    ENV['PF_TEST_WEBHOOK_SECRET'] = secrets.token_urlsafe(32)
+    with Path(__file__).with_name('.env.local').open('a') as private:
+        private.write('\nPF_TEST_WEBHOOK_SECRET=' + ENV['PF_TEST_WEBHOOK_SECRET'] + '\n')
+WEBHOOK_SECRET = ENV['PF_TEST_WEBHOOK_SECRET']
 cookies = http.cookiejar.CookieJar()
 client = urllib.request.build_opener(urllib.request.HTTPCookieProcessor(cookies))
 
@@ -47,11 +54,19 @@ def prepare_credentials():
     for credential in existing:
         if credential['name']=='PF · Modelo extracción' and credential['type']=='openRouterApi':
             result[credential['name']]={'id':credential['id'],'name':credential['name']}
+    name='PF · Webhook tienda'
+    found=next((c for c in existing if c['name']==name and c['type']=='httpHeaderAuth'),None)
+    if found is None:
+        found=request('/rest/credentials',{'name':name,'type':'httpHeaderAuth',
+            'data':{'name':'X-PF-Webhook-Key','value':WEBHOOK_SECRET}})['data']
+    result[name]={'id':found['id'],'name':name}
     (STATE/'credentials.json').write_text(json.dumps(result))
     return result
 
-def install(path, error_id=None):
+def install(path, error_id=None, retain_test_execution=False):
     flow=json.loads(Path(path).read_text())
+    if retain_test_execution:
+        flow['settings'].update(saveDataSuccessExecution='all',saveDataErrorExecution='all')
     creds=json.loads((STATE/'credentials.json').read_text())
     for node in flow['nodes']:
         for kind,reference in node.get('credentials',{}).items():
@@ -117,7 +132,7 @@ def fixture_flow(path,error_id=None,clock=None,model_mock=False):
 def invoke(flow,path,payload,timeout=45):
     from test_08 import executions, finished
     previous=[e['id'] for e in executions(flow['id'])]
-    request('/webhook/'+path,payload)
+    request('/webhook/'+path,payload,headers={'X-PF-Webhook-Key':WEBHOOK_SECRET})
     return finished(flow['id'],previous,timeout=timeout)
 
 def message_count():

@@ -14,7 +14,7 @@ flows = []
 evidence = []
 cases = {c['id']: c for c in json.loads(
     (ROOT / 'data/pruebas/contratos.json').read_text())['cases'] if c['flow'] == 'PF-01'}
-config_keys = ['PF01_WORKFLOW_ID']
+config_keys = ['PF01_WORKFLOW_ID', 'API_BASE_URL']
 
 
 def quoted(value):
@@ -86,12 +86,15 @@ try:
     child = install(root / 'workflows/01-confirmacion-apartado.json', error['id'])
     flows.append(child)
     activate(child)
-    router = install(root / 'workflows/00-entrada-eventos.json', error['id'])
+    router = install(root / 'workflows/00-entrada-eventos.json', error['id'], retain_test_execution=True)
     flows.append(router)
     activate(router)
     # El Webhook publicado tarda ocasionalmente más de un segundo en registrarse.
     time.sleep(2)
     config('PF01_WORKFLOW_ID', child['id'])
+    # Permisos explícitos de IDs ficticios; no concederlos en la tienda real.
+    config('API_BASE_URL', 'http://simulador:8080')
+    request('/__fixture', {'consentimientos': {'9001': True, '9011': True, '9013': True}}, base='http://127.0.0.1:18080')
     # Registro aislado del laboratorio: solo se limpian las claves ficticias de estos casos.
     sql("DELETE FROM pf_registro WHERE clave LIKE 'apartado.creado:90%'")
     business_before = business_snapshot()

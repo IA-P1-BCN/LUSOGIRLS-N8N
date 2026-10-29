@@ -182,7 +182,7 @@
     },
     {
       "parameters": {
-        "jsCode": "// ---------- Bloque 1: ayudas de formato (solo presentación, sin cálculos) ----------\nconst euros = v => `${Number(v).toFixed(2).replace('.', ',')} €`;\nconst fechaEs = f => f.split('-').reverse().join('/');\nconst esTexto = v => typeof v === 'string' && v.trim() !== '';\n\n// ---------- Bloque 2: un documento por apartado ----------\nconst salida = [];\nfor (const it of $input.all()) {\n  const { apartado: a, hito, config: c } = it.json;\n\n  if (!esTexto(c.CORREO_REMITENTE) || !esTexto(c.CORREO_MARISA)) throw new Error('Falta configuración de correo');\n  if (!Number.isInteger(a.id) || !esTexto(a.cliente) || !esTexto(a.producto)) throw new Error('Faltan datos del apartado');\n  if (![7, 1].includes(hito)) throw new Error('Hito de recordatorio inesperado');\n  if (!Number.isFinite(a.abonado) || !Number.isFinite(a.pendiente)) throw new Error('Faltan datos financieros del apartado');\n\n  const cuando = hito === 7 ? 'dentro de 7 días' : 'mañana';\n  const talla = esTexto(a.talla) ? ` (talla ${a.talla})` : '';\n  const limite = fechaEs(a.fecha_limite);\n  const base = `${a.fecha_limite}:${hito}`;\n\n  if (esTexto(a.email)) {\n    salida.push({ json: {\n      clave: `${a.id}:${base}:email`,\n      tipo: 'recordatorio',\n      documento: {\n        remitente: c.CORREO_REMITENTE,\n        destinatario: a.email.trim(),\n        asunto: `Tu apartado de ${a.producto} vence ${cuando}`,\n        texto: `Hola ${a.cliente},\\n\\nTe recordamos que tu apartado de ${a.producto}${talla} vence ${cuando}, el ${limite}.\\n\\nHas abonado ${euros(a.abonado)} y te quedan ${euros(a.pendiente)} por pagar.\\n\\nPuedes completar el pago hasta el ${limite} incluido. Pasado ese día, el apartado vence y se genera un vale por lo abonado.\\n\\nZapatería Paso Firme`\n      }\n    } });\n  } else {\n    const tel = esTexto(a.telefono) ? ` Teléfono: ${a.telefono}.` : '';\n    salida.push({ json: {\n      clave: `${a.id}:${base}:marisa`,\n      tipo: 'recordatorio_sin_email',\n      documento: {\n        remitente: c.CORREO_REMITENTE,\n        destinatario: c.CORREO_MARISA,\n        asunto: `Apartado ${a.id} sin correo: recordatorio sin enviar`,\n        texto: `El apartado ${a.id} de ${a.cliente} (${a.producto}${talla}) vence ${cuando}, el ${limite}. Abonado: ${euros(a.abonado)}. Pendiente: ${euros(a.pendiente)}.\\n\\nNo tiene correo registrado, así que no se ha enviado el recordatorio al cliente. Avísale por otro medio.${tel}`\n      }\n    } });\n  }\n}\nreturn salida;"
+        "jsCode": "// ---------- Bloque 1: ayudas de formato (solo presentación, sin cálculos) ----------\nconst euros = v => `${Number(v).toFixed(2).replace('.', ',')} €`;\nconst fechaEs = f => f.split('-').reverse().join('/');\nconst esTexto = v => typeof v === 'string' && v.trim() !== '';\n\n// ---------- Bloque 2: un documento por apartado ----------\nconst salida = [];\nfor (const it of $input.all()) {\n  const { apartado: a, hito, config: c } = it.json;\n\n  if (!esTexto(c.CORREO_REMITENTE) || !esTexto(c.CORREO_MARISA)) throw new Error('Falta configuración de correo');\n  if (!Number.isInteger(a.id) || !esTexto(a.cliente) || !esTexto(a.producto)) throw new Error('Faltan datos del apartado');\n  if (![7, 1].includes(hito)) throw new Error('Hito de recordatorio inesperado');\n  if (!Number.isFinite(a.abonado) || !Number.isFinite(a.pendiente)) throw new Error('Faltan datos financieros del apartado');\n\n  const cuando = hito === 7 ? 'dentro de 7 días' : 'mañana';\n  const talla = esTexto(a.talla) ? ` (talla ${a.talla})` : '';\n  const limite = fechaEs(a.fecha_limite);\n  const base = `${a.fecha_limite}:${hito}`;\n\n  if (esTexto(a.email) && a.consentimiento_notificaciones === true) {\n    salida.push({ json: {\n      clave: `${a.id}:${base}:email`,\n      tipo: 'recordatorio',\n      documento: {\n        apartado_id: a.id, destino: 'cliente',\n        remitente: c.CORREO_REMITENTE,\n        destinatario: a.email.trim(),\n        asunto: `Tu apartado de ${a.producto} vence ${cuando}`,\n        texto: `Hola ${a.cliente},\\n\\nTe recordamos que tu apartado de ${a.producto}${talla} vence ${cuando}, el ${limite}.\\n\\nHas abonado ${euros(a.abonado)} y te quedan ${euros(a.pendiente)} por pagar.\\n\\nPuedes completar el pago hasta el ${limite} incluido. Pasado ese día, el apartado vence y se genera un vale por lo abonado.\\n\\nZapatería Paso Firme`\n      }\n    } });\n  } else {\n    const tel = esTexto(a.telefono) ? ` Teléfono: ${a.telefono}.` : '';\n    salida.push({ json: {\n      clave: `${a.id}:${base}:marisa`,\n      tipo: 'recordatorio_sin_email',\n      documento: {\n        apartado_id: a.id, destino: 'tienda',\n        remitente: c.CORREO_REMITENTE,\n        destinatario: c.CORREO_MARISA,\n        asunto: `Apartado ${a.id} sin permiso o correo: recordatorio sin enviar`,\n        texto: `El apartado ${a.id} de ${a.cliente} (${a.producto}${talla}) vence ${cuando}, el ${limite}. Abonado: ${euros(a.abonado)}. Pendiente: ${euros(a.pendiente)}.\\n\\nNo consta permiso de correo o falta su dirección; no se ha enviado el recordatorio. Revisa la autorización en la app.${tel}`\n      }\n    } });\n  }\n}\nreturn salida;"
       },
       "id": "2ce50407-3175-40e5-b307-28b648123da1",
       "name": "Preparar recordatorio",
@@ -351,7 +351,7 @@
     },
     {
       "parameters": {
-        "jsCode": "// ---------- Bloque 1: ayudas (solo formato, sin cálculos) ----------\nconst euros = v => `${Number(v).toFixed(2).replace('.', ',')} €`;\nconst fechaEs = f => f.split('-').reverse().join('/');\nconst esTexto = v => typeof v === 'string' && v.trim() !== '';\n\n// ---------- Bloque 2: un par de avisos por vale ----------\nconst salida = [];\nfor (const it of $input.all()) {\n  // Calendario trae {config, apartado, vale}; el evento de PF-00 trae {config, datos: {apartado, vale}}\n  const c = it.json.config;\n  const { apartado: a, vale: v } = it.json.datos ?? it.json;\n\n  if (!esTexto(c.CORREO_REMITENTE) || !esTexto(c.CORREO_MARISA)) throw new Error('Falta configuración de correo');\n  if (!a || a.estado !== 'vencido') throw new Error('El apartado no consta como vencido');\n  if (!v || !esTexto(v.codigo) || !Number.isFinite(v.importe) || v.apartado_id !== a.id) {\n    throw new Error(`Vale ausente o incoherente para el apartado ${a.id}`);\n  }\n\n  const talla = esTexto(a.talla) ? `talla ${a.talla}` : 'talla no indicada';\n  const base = `vale:${v.codigo}`;\n\n  // Aviso al cliente (solo si tiene correo)\n  if (esTexto(a.email)) {\n    salida.push({ json: {\n      clave: `${base}:cliente`,\n      tipo: 'vencimiento_cliente',\n      documento: {\n        remitente: c.CORREO_REMITENTE,\n        destinatario: a.email.trim(),\n        asunto: `Tu apartado de ${a.producto} ha vencido: tienes un vale`,\n        texto: `Hola ${a.cliente},\\n\\nTu apartado de ${a.producto} (${talla}) venció el ${fechaEs(a.fecha_limite)} sin completarse el pago.\\n\\nHemos generado un vale de compra por lo que habías abonado:\\n\\nCódigo: ${v.codigo}\\nImporte: ${euros(v.importe)}\\n\\nPuedes usarlo en tu próxima compra en la tienda. No se devuelve en efectivo.\\n\\nZapatería Paso Firme`\n      }\n    } });\n  }\n\n  // Aviso a Marisa (siempre): liberar el par y, si falta correo, avisar al cliente por otro medio\n  const sinCorreo = esTexto(a.email) ? '' :\n    `\\n\\nEl cliente no tiene correo registrado: no se le ha enviado el aviso. Comunícale el vale por otro medio.${esTexto(a.telefono) ? ` Teléfono: ${a.telefono}.` : ''}`;\n  salida.push({ json: {\n    clave: `${base}:marisa`,\n    tipo: 'vencimiento_tienda',\n    documento: {\n      remitente: c.CORREO_REMITENTE,\n      destinatario: c.CORREO_MARISA,\n      asunto: `Apartado ${a.id} vencido: liberar ${a.producto} (${talla})`,\n      texto: `El apartado ${a.id} de ${a.cliente} ha vencido (fecha límite ${fechaEs(a.fecha_limite)}).\\n\\nPar a liberar: ${a.producto}, ${talla}.\\nVale generado por la app: ${v.codigo} por ${euros(v.importe)}.\\n\\nLa app no modifica el inventario: vuelve a poner el par a la venta.${sinCorreo}`\n    }\n  } });\n}\nreturn salida;"
+        "jsCode": "// ---------- Bloque 1: ayudas (solo formato, sin cálculos) ----------\nconst euros = v => `${Number(v).toFixed(2).replace('.', ',')} €`;\nconst fechaEs = f => f.split('-').reverse().join('/');\nconst esTexto = v => typeof v === 'string' && v.trim() !== '';\n\n// ---------- Bloque 2: un par de avisos por vale ----------\nconst salida = [];\nfor (const it of $input.all()) {\n  // Calendario trae {config, apartado, vale}; el evento de PF-00 trae {config, datos: {apartado, vale}}\n  const c = it.json.config;\n  const { apartado: a, vale: v } = it.json.datos ?? it.json;\n\n  if (!esTexto(c.CORREO_REMITENTE) || !esTexto(c.CORREO_MARISA)) throw new Error('Falta configuración de correo');\n  if (!a || a.estado !== 'vencido') throw new Error('El apartado no consta como vencido');\n  if (!v || !esTexto(v.codigo) || !Number.isFinite(v.importe) || v.apartado_id !== a.id) {\n    throw new Error(`Vale ausente o incoherente para el apartado ${a.id}`);\n  }\n\n  const talla = esTexto(a.talla) ? `talla ${a.talla}` : 'talla no indicada';\n  const base = `vale:${v.codigo}`;\n\n  // Aviso al cliente (solo si tiene correo)\n  if (esTexto(a.email) && a.consentimiento_notificaciones === true) {\n    salida.push({ json: {\n      clave: `${base}:cliente`,\n      tipo: 'vencimiento_cliente',\n      documento: {\n        apartado_id: a.id, destino: 'cliente',\n        remitente: c.CORREO_REMITENTE,\n        destinatario: a.email.trim(),\n        asunto: `Tu apartado de ${a.producto} ha vencido: tienes un vale`,\n        texto: `Hola ${a.cliente},\\n\\nTu apartado de ${a.producto} (${talla}) venció el ${fechaEs(a.fecha_limite)} sin completarse el pago.\\n\\nHemos generado un vale de compra por lo que habías abonado:\\n\\nCódigo: ${v.codigo}\\nImporte: ${euros(v.importe)}\\n\\nPuedes usarlo en tu próxima compra en la tienda. No se devuelve en efectivo.\\n\\nZapatería Paso Firme`\n      }\n    } });\n  }\n\n  // Aviso a Marisa (siempre): liberar el par y, si falta correo, avisar al cliente por otro medio\n  const sinCorreo = esTexto(a.email) && a.consentimiento_notificaciones === true ? '' :\n    `\\n\\nNo consta permiso de correo o falta su dirección: no se ha enviado el aviso. Gestiona el vale en tienda y revisa la autorización en la app.${esTexto(a.telefono) ? ` Teléfono: ${a.telefono}.` : ''}`;\n  salida.push({ json: {\n    clave: `${base}:marisa`,\n    tipo: 'vencimiento_tienda',\n    documento: {\n        apartado_id: a.id, destino: 'tienda',\n      remitente: c.CORREO_REMITENTE,\n      destinatario: c.CORREO_MARISA,\n      asunto: `Apartado ${a.id} vencido: liberar ${a.producto} (${talla})`,\n      texto: `El apartado ${a.id} de ${a.cliente} ha vencido (fecha límite ${fechaEs(a.fecha_limite)}).\\n\\nPar a liberar: ${a.producto}, ${talla}.\\nVale generado por la app: ${v.codigo} por ${euros(v.importe)}.\\n\\nLa app no modifica el inventario: vuelve a poner el par a la venta.${sinCorreo}`\n    }\n  } });\n}\nreturn salida;"
       },
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -431,6 +431,93 @@
         "httpHeaderAuth": {
           "name": "PF · API tienda"
         }
+      }
+    },
+    {
+      "name": "Preparar comprobación de consentimiento",
+      "id": "09d27f90-fae9-4208-8298-c2726c5cb98d",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1000,
+        400
+      ],
+      "parameters": {
+        "jsCode": "return $input.all();"
+      }
+    },
+    {
+      "name": "¿Aviso al cliente?",
+      "id": "992f042d-1c0a-4c02-ab81-f3a8a8d14767",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1250,
+        400
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "0f5d1708-ad54-4d75-b5b7-0ed114b31409",
+              "leftValue": "={{ $json.documento.destino === 'cliente' }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      }
+    },
+    {
+      "name": "Consultar consentimiento actual",
+      "id": "73d27aed-8d64-4914-b427-1cee4d68aa7f",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        1500,
+        400
+      ],
+      "parameters": {
+        "url": "={{ $('Leer configuración').first().json.config.API_BASE_URL + '/api/apartados/' + $json.documento.apartado_id + '/consentimiento' }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "options": {
+          "timeout": 10000
+        }
+      },
+      "credentials": {
+        "httpHeaderAuth": {
+          "name": "PF · API tienda"
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 1000
+    },
+    {
+      "name": "Aplicar consentimiento actual",
+      "id": "769afd24-94c1-421c-9ac8-977041abe5a8",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1750,
+        400
+      ],
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const original=$('Preparar comprobación de consentimiento').item.json;\nconst permiso=$json;\nif(permiso.apartado_id!==original.documento.apartado_id || typeof permiso.consentimiento_notificaciones!=='boolean')throw new Error('Respuesta de consentimiento no válida');\nif(permiso.consentimiento_notificaciones)return {json:original};\nconst c=$('Leer configuración').first().json.config;\nreturn {json:{...original,documento:{...original.documento,destino:'tienda',motivo:'consentimiento_retirado',destinatario:c.CORREO_MARISA,\nasunto:`Paso Firme · Aviso no enviado al apartado ${permiso.apartado_id}`,\ntexto:`No se ha enviado el aviso al cliente del apartado ${permiso.apartado_id}: el permiso de correo no está vigente. Revisa la autorización en la app; no se reenvía automáticamente al concederla.`}}};"
       }
     }
   ],
@@ -579,7 +666,7 @@
       "main": [
         [
           {
-            "node": "Reservar operación",
+            "node": "Preparar comprobación de consentimiento",
             "type": "main",
             "index": 0
           }
@@ -623,7 +710,7 @@
       "main": [
         [
           {
-            "node": "Reservar operación",
+            "node": "Preparar comprobación de consentimiento",
             "type": "main",
             "index": 0
           }
@@ -657,6 +744,57 @@
         [
           {
             "node": "Interpretar vencimiento",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Preparar comprobación de consentimiento": {
+      "main": [
+        [
+          {
+            "node": "¿Aviso al cliente?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "¿Aviso al cliente?": {
+      "main": [
+        [
+          {
+            "node": "Consultar consentimiento actual",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Reservar operación",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Consultar consentimiento actual": {
+      "main": [
+        [
+          {
+            "node": "Aplicar consentimiento actual",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Aplicar consentimiento actual": {
+      "main": [
+        [
+          {
+            "node": "Reservar operación",
             "type": "main",
             "index": 0
           }

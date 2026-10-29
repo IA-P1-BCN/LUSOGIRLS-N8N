@@ -70,3 +70,7 @@ Los motivos de revisión mantienen el vocabulario del contrato: `exceso_sobre_pe
 ### Validación del 26/10/2026
 
 La recepción IMAP, los nueve correos y su repetición se probaron con servidor local y Message-ID transmitido como cabecera. La IA fue simulada. La integración de ese día usó PF-02 de #38 en `a6ae946`; todavía quedaban abiertas su corrección de talla opcional y la validación de OpenRouter real. El modelo usa un tipo de credencial distinto del Header Auth de la tienda para impedir que n8n reutilice esa clave al importar un flujo sin credencial del modelo. La exportación elimina IDs locales y conserva los nombres compartidos. El estado actual de PF-02 figura al inicio y en la evidencia del 28/10.
+
+## Minimización HU-14
+
+`Preparar petición IA` permite únicamente un contexto de asunto conocido, ordenante, importe y concepto. El contexto conserva el medio (Bizum/transferencia); no viajan el correo completo, remitente, Message-ID, destinatario, adjuntos ni la lista de apartados. Se filtran emails, enlaces, IBAN y secuencias numéricas largas en los campos de texto. Un asunto bancario desconocido con campos de pago se rechaza antes de llamar a IA; los formatos admitidos corresponden a los `.eml` de prueba. La validación posterior usa el original local: si la reducción altera un campo necesario, el caso falla para revisión sin registrar abono. Detalles y límites en [datos personales](../docs/datos-personales.md).

@@ -5,7 +5,8 @@
       "parameters": {
         "httpMethod": "POST",
         "path": "migracion",
-        "options": {}
+        "options": {},
+        "authentication": "headerAuth"
       },
       "type": "n8n-nodes-base.webhook",
       "typeVersion": 2.2,
@@ -15,7 +16,12 @@
       ],
       "id": "7567ba3c-1ccb-4fa4-a074-9e815e8c5e05",
       "name": "Recibir migración",
-      "webhookId": "c2ae683b-f1ab-46b0-bb45-c2ff5dd19648"
+      "webhookId": "c2ae683b-f1ab-46b0-bb45-c2ff5dd19648",
+      "credentials": {
+        "httpHeaderAuth": {
+          "name": "PF · Webhook tienda"
+        }
+      }
     },
     {
       "parameters": {
@@ -530,9 +536,11 @@
   "settings": {
     "executionOrder": "v1",
     "timezone": "Europe/Madrid",
-    "saveDataErrorExecution": "all",
-    "saveDataSuccessExecution": "all",
-    "callerPolicy": "workflowsFromSameOwner"
+    "saveDataErrorExecution": "none",
+    "saveDataSuccessExecution": "none",
+    "callerPolicy": "workflowsFromSameOwner",
+    "saveManualExecutions": false,
+    "saveExecutionProgress": false
   },
   "active": false,
   "pinData": {}

@@ -52,3 +52,9 @@ Para probar desde la app con un workflow sin publicar, cambiar **localmente** `N
 | Cierres/deduplicación | `PF · Registro auxiliar` | Almacenamiento seleccionado, permisos y claves únicas |
 
 Son nombres comunes para que cada integrante cree y seleccione sus credenciales locales; no implican que ya estén configuradas en ambas instancias. No compartir claves personales ni el `.env` por GitHub. `UMBRAL_VENTA_GRANDE`, horario, destino de avisos y política de retención se documentan al elegirlos. No depender de una funcionalidad de pago de n8n sin verificar que está disponible en la edición instalada.
+
+## HU-14: configuración coordinada
+
+Antes de activar PF-00/PF-09, crear `PF · Webhook tienda` de tipo Header Auth con nombre de cabecera `X-PF-Webhook-Key`. Guardar su valor solo en la credencial y en `N8N_WEBHOOK_KEY` del `.env` de la app; debe ser distinto de `API_KEY`. Nunca ponerlo en frontend o `pf_config`. Ambos workflows se entregan sin historial de ejecución para no persistir la cabecera.
+
+PF-01/PF-02/PF-06 necesitan también `PF · API tienda` para consultar el permiso vigente. Actualizar primero la app con su migración aditiva. Los apartados existentes permanecen sin consentimiento hasta que la tienda registre una autorización real. Guía: [datos personales](../docs/datos-personales.md).
