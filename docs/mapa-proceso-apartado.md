@@ -2,7 +2,7 @@
 
 El primer mapa representa el trabajo manual descrito en el enunciado (libreta, Excel y calculadora); no es una observación de una tienda real. El segundo muestra la app y las automatizaciones del equipo. Un detalle separado permite seguir los pagos a distancia sin perder de vista los controles.
 
-**Referencia:** `dev` en `ff58b7e`, 28/10/2026; PF-03 en la [PR #36](https://github.com/IA-P1-BCN/LUSOGIRLS-N8N/pull/36), commit `efe35cf`, todavía pendiente de aprobación e integración. El mapa describe el comportamiento implementado/probado en laboratorio, no una publicación en producción. HU-13, HU-14 y HU-16 no se representan como terminadas.
+**Referencia:** `dev` en `f4e8894`, actualizado el 29/10/2026; PF-03 integrado mediante la [PR #36](https://github.com/IA-P1-BCN/LUSOGIRLS-N8N/pull/36), aprobada por Rita el 28/10. El mapa describe el comportamiento implementado/probado en laboratorio, no una publicación en producción. HU-13, HU-14 y HU-16 no se representan como terminadas.
 
 ## 1. Antes: libreta, Excel y calculadora
 
@@ -18,7 +18,7 @@ La dependienta y Marisa identifican los pagos, actualizan el saldo y detectan ve
 
 [Imagen SVG](diagramas/apartado-automatizado.svg) · [PDF](diagramas/apartado-automatizado.pdf) · [Fuente editable Mermaid](diagramas/apartado-automatizado.mmd)
 
-**Leyenda:** amarillo = actuación humana; azul = escritura/estado en la app; verde = automatización o aviso; rombo = decisión. El recuadro discontinuo de PF-03 indica revisión pendiente. Las flechas discontinuas conectan tareas periódicas o controles comunes, no son nuevos eventos HTTP.
+**Leyenda:** amarillo = actuación humana; azul = escritura/estado en la app; verde = automatización o aviso; rombo = decisión. Las flechas discontinuas conectan tareas periódicas o controles comunes, no son nuevos eventos HTTP.
 
 | Paso | Responsable y contrato comprobable |
 | --- | --- |
@@ -41,9 +41,9 @@ Un saldo cero también puede darse en el alta: no hace falta esperar un segundo 
 
 [Imagen SVG](diagramas/abono-distancia.svg) · [PDF](diagramas/abono-distancia.pdf) · [Fuente editable Mermaid](diagramas/abono-distancia.mmd)
 
-La IA extrae datos; la API y el código del flujo deciden si el pago puede registrarse. Publicidad, cliente desconocido, identidad ambigua, exceso de importe y apartado fuera de plazo no producen un abono automático. Un resultado incierto de un POST no permite repetir el cobro a ciegas.
+La IA extrae datos; la API y el código del flujo deciden si el pago puede registrarse. Publicidad, cliente desconocido, identidad ambigua, exceso de importe y apartado fuera de plazo no producen un abono automático. Un resultado incierto de un POST no permite repetir el cobro a ciegas. Primero se valida la extracción y se reserva el correo; solo una reserva nueva permite consultar candidatos. Antes del POST se bloquea el apartado y se relee el saldo. Una salida de IA inválida activa PF-08, sin reservar ni cobrar. La clasificación «no es pago» se descarta sin aviso; un falso negativo del modelo puede ocultar un pago real y requiere conciliación humana del buzón.
 
-El enunciado y la daily hablan de ocho correos, pero la carpeta contiene **nueve**. La prueba de PF-03 del 28/10 cubre los nueve y una repetición: 10/10 casos, ejecuciones 362–389. [Evidencia en el commit revisable](https://github.com/IA-P1-BCN/LUSOGIRLS-N8N/blob/efe35cfd5d41f06ba5cfcabec174df8968d42f5f/docs/pruebas/03-abonos-distancia.md). Esto no sustituye una comparativa controlada entre dos modelos.
+El enunciado y la daily hablan de ocho correos, pero la carpeta contiene **nueve**. La prueba de PF-03 del 28/10 cubre los nueve y una repetición: 10/10 casos, ejecuciones 362–389. [Evidencia de PF-03](pruebas/03-abonos-distancia.md). Esto no sustituye una comparativa controlada entre dos modelos.
 
 ## Alcance, fuentes y mantenimiento
 
@@ -51,7 +51,7 @@ El webhook de la versión representada todavía no exige autenticación; tampoco
 
 - [Enunciado y reglas](../README.md), [ontología](ontologia.md) y [guía de la app](guia-de-la-app.md).
 - Contratos: [controlador de apartados](../backend/controllers/apartados.py), [modelo de apartados](../backend/models/apartado.py), [modelo de abonos](../backend/models/abono.py) y [emisor de eventos](../backend/services/n8n.py).
-- Flujos: [PF-00](../specs/00-entrada-eventos.md), [PF-01](../specs/01-confirmacion-apartado.md), [PF-02](../specs/02-recibo-abono.md), [PF-06](../specs/06-recordatorios-vencimientos.md), [PF-05](../specs/05-cierre-diario.md), [PF-07](../specs/07-informe-mensual.md) y [PF-08](../specs/08-errores.md).
+- Flujos: [PF-00](../specs/00-entrada-eventos.md), [PF-01](../specs/01-confirmacion-apartado.md), [PF-02](../specs/02-recibo-abono.md), [PF-03](../specs/03-abonos-distancia.md), [PF-06](../specs/06-recordatorios-vencimientos.md), [PF-05](../specs/05-cierre-diario.md), [PF-07](../specs/07-informe-mensual.md) y [PF-08](../specs/08-errores.md).
 
 Los mapas se mantienen en Mermaid, una herramienta de diagramas de flujo con texto editable. SVG y PDF se exportan de las mismas fuentes. Para regenerar cada mapa desde la raíz del repositorio, sustituir `apartado-manual` por el nombre correspondiente:
 

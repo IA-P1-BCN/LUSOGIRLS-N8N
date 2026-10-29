@@ -9,3 +9,7 @@
 - **Correcciones de interpretación:** 90 días no son tres meses de calendario; 5 EUR solo es el mínimo del alta; alta liquidada también existe; vencer requiere POST; liquidar no crea una venta; liberar zapatos es manual porque no hay API de inventario. Nueve correos de ejemplo, aunque el enunciado menciona ocho.
 - **Decisión humana:** completar DOC-03 está autorizado por Fabiana. Aprobación de contenido por Rita y merge pendientes; no se atribuye conformidad a la compañera.
 - **Validación:** tres SVG y tres PDF exportados; SVG parseados como XML, cabeceras PDF comprobadas e inspección visual de las tres imágenes renderizadas. Enlaces relativos y `git diff --check` correctos. Son comprobaciones documentales; no se presentan como nuevas ejecuciones de n8n.
+
+## 29/10 · Correcciones solicitadas por Rita
+
+Se fusiona `dev` con #36 integrada. El mapa PF-03 ahora muestra la reserva por cuenta/Message-ID antes de consultar apartados, el bloqueo por apartado y la relectura del saldo antes del POST. La salida inválida de IA conduce a PF-08, separada de la revisión de negocio. Se explicita el riesgo de falsos negativos. Se actualizan las referencias y se regeneran los SVG/PDF de los dos mapas modificados con Mermaid CLI 11.12.0; revisión visual, enlaces y diff comprobados. La aprobación de esta nueva versión sigue pendiente.
