@@ -9,5 +9,5 @@ if not path.exists():
     with os.fdopen(fd, 'w') as out:
         out.write('PF_TEST_SECRET=' + secrets.token_urlsafe(32) + '\n')
         # Usamos la misma imagen que ya está instalada en el proyecto.
-        out.write('PF_TEST_N8N_IMAGE=docker.n8n.io/n8nio/n8n:latest\n')
+        out.write('PF_TEST_N8N_IMAGE=docker.n8n.io/n8nio/n8n:2.45.4\n')
 print('Entorno de pruebas preparado; secretos guardados solo en .env.local.')

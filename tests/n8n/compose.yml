@@ -1,7 +1,7 @@
 name: lusogirls-pruebas
 services:
   n8n:
-    image: ${PF_TEST_N8N_IMAGE:-docker.n8n.io/n8nio/n8n:2.44.5}
+    image: ${PF_TEST_N8N_IMAGE:-docker.n8n.io/n8nio/n8n:2.45.4}
     environment:
       TZ: Europe/Madrid
       GENERIC_TIMEZONE: Europe/Madrid
