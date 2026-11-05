@@ -81,7 +81,7 @@ Por eso la carpeta se llama `frontend/` y no `templates/`: no son plantillas que
 | Abono inicial | Mínimo **5 €** al crear el apartado, y no más que el precio |
 | Plazo | `fecha_limite` = fecha del apartado **+ 90 días** |
 | Abonos | De cualquier importe, pero **nunca más de lo que falta** |
-| Formas de pago | `efectivo`, `tarjeta` o `bizum` |
+| Formas de pago | `efectivo`, `tarjeta`, `bizum` o `transferencia` (ampliación de HU-03 autorizada el 22/10/2026) |
 | Abonar | Solo si el apartado está `activo` **y** no ha pasado su fecha límite |
 
 Si una regla no se cumple, la app responde con un error `422` y un mensaje claro (ver [errores](#errores-que-puede-devolver-la-api)).
@@ -131,6 +131,7 @@ En n8n se hace **una vez**, creando una credencial *Header Auth* (Name `X-API-Ke
 | `GET /api/apartados` | Lista de apartados |
 | `GET /api/apartados/resumen` | Cuántos hay por estado (`activo`, `liquidado`, `vencido`, `total`) |
 | `GET /api/apartados/{id}` | Un apartado, con sus **abonos** y su **vale** (o `null`) |
+| `GET/PATCH /api/apartados/{id}/consentimiento` | Consultar o registrar/retirar el permiso de correo de ese apartado |
 | `POST /api/apartados` | Crear un apartado (con su abono inicial) |
 | `POST /api/apartados/{id}/abonos` | Registrar un abono |
 | `POST /api/apartados/{id}/vencer` | Vencer un apartado fuera de plazo y generar su vale |
@@ -154,7 +155,7 @@ En n8n se hace **una vez**, creando una credencial *Header Auth* (Name `X-API-Ke
 
 | Endpoint | Cuerpo (JSON) |
 |---|---|
-| `POST /api/apartados` | `cliente`, `producto`, `precio`, `abono_inicial` (obligatorios) · `telefono`, `email`, `talla`, `forma_pago`, `fecha` (opcionales) |
+| `POST /api/apartados` | `cliente`, `producto`, `precio`, `abono_inicial` (obligatorios) · `telefono`, `email`, `talla`, `forma_pago`, `fecha`, `consentimiento_notificaciones` (opcionales; permiso false por defecto) |
 | `POST /api/apartados/{id}/abonos` | `importe` (obligatorio) · `forma_pago`, `fecha` |
 | `POST /api/ventas` | `concepto`, `importe` (obligatorios) · `forma_pago`, `fecha` |
 | `POST /api/apartados/{id}/vencer` | Sin cuerpo |
@@ -371,3 +372,7 @@ Cada acción que cree algo dispara su aviso a n8n, igual que si se hiciera desde
 | **`401` en todas las llamadas** | La credencial de n8n no tiene la misma clave que `API_KEY` del `.env`, o el *Name* no es exactamente `X-API-Key` |
 | **¿Puede n8n modificar la base de datos directamente?** | No, ni falta que hace: todo pasa por la API, que es quien aplica las reglas |
 | **¿Dónde está el código que calcula `pendiente`?** | En `backend/models/apartado.py` (la consulta `SELECT`). La app lo calcula; n8n solo lo lee |
+
+## Consentimiento y webhook autenticado (HU-14)
+
+El alta acepta `consentimiento_notificaciones` como booleano estricto, false por defecto. `GET/PATCH /api/apartados/{id}/consentimiento` permiten consultar y registrar/retirar permiso, con clave API. Los eventos incluyen el booleano actual; n8n lo revalida antes de enviar correo. `N8N_WEBHOOK_KEY` configura la cabecera secreta `X-PF-Webhook-Key`; sin clave no se envía el evento. No hay reintentos ni cambia el resultado de la operación en tienda. Ver [configuración y límites](datos-personales.md).

@@ -1,0 +1,213 @@
+{
+  "name": "PF-04 · Aviso de venta grande",
+  "nodes": [
+    {
+      "id": "187f48a5-af44-4103-8c29-7e415107eb07",
+      "name": "Recibir venta de PF-00",
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1.3,
+      "position": [
+        0,
+        0
+      ],
+      "parameters": {
+        "inputSource": "passthrough"
+      }
+    },
+    {
+      "id": "bc32eb08-9472-4fe4-894a-ad61bc4a959f",
+      "name": "Leer configuración",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.7,
+      "position": [
+        240,
+        0
+      ],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT COALESCE(jsonb_object_agg(clave,valor),'{}'::jsonb) AS config, $1::jsonb AS entrada FROM pf_config",
+        "options": {
+          "queryReplacement": "={{ [JSON.stringify($json)] }}"
+        }
+      },
+      "credentials": {
+        "postgres": {
+          "name": "PF · Registro auxiliar"
+        }
+      }
+    },
+    {
+      "id": "38fd103e-fce5-43e8-a523-d109fb33d13c",
+      "name": "Validar venta y umbral",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        480,
+        0
+      ],
+      "parameters": {
+        "jsCode": "\nconst cent=v=>{if(!/^(0|[1-9]\\d*)(\\.\\d{1,2})?$/.test(String(v)))throw new Error('Importe inválido');const [a,b='']=String(v).split('.');const n=Number(a)*100+Number(b.padEnd(2,'0'));if(!Number.isSafeInteger(n))throw new Error('Importe fuera de rango');return n;};\nconst add=(a,b)=>{const n=a+b;if(!Number.isSafeInteger(n))throw new Error('Total fuera de rango');return n;};\nconst euros=n=>(n/100).toFixed(2)+' EUR';\nconst date=v=>typeof v==='string'&&/^\\d{4}-\\d{2}-\\d{2}$/.test(v)&&!Number.isNaN(Date.parse(v))&&new Date(v).toISOString().slice(0,10)===v;\nconst medios=['efectivo','tarjeta','bizum','transferencia'];\nconst list=(r,requireCount=false)=>{if(r.statusCode!==200||!Array.isArray(r.body))throw new Error('Respuesta API incompleta');if(requireCount&&Number(r.headers?.['x-total-count'])!==r.body.length)throw new Error('Lista API incompleta');return r.body;};\nconst totals=(rows,desde,hasta)=>{const by={efectivo:0,tarjeta:0,bizum:0};const ids=new Set();let total=0;for(const r of rows){if(!Number.isSafeInteger(r.id)||r.id<1||ids.has(r.id)||!date(r.fecha)||r.fecha<desde||r.fecha>hasta||!medios.includes(r.forma_pago))throw new Error('Movimiento API inválido');ids.add(r.id);const n=cent(r.importe);if(n<=0)throw new Error('Movimiento sin importe positivo');by[r.forma_pago]=add(by[r.forma_pago]||0,n);total=add(total,n);}return {total,by};};\n\nconst {entrada:raw,config:c}=$input.first().json;const e=raw.body||raw;\nif(e.evento!=='venta.registrada')return [];\nif(c.UMBRAL_VENTA_GRANDE===undefined||c.UMBRAL_VENTA_GRANDE==='')throw new Error('Falta UMBRAL_VENTA_GRANDE');\nconst umbral=cent(c.UMBRAL_VENTA_GRANDE),v=e.datos;\nif(!v||!Number.isSafeInteger(v.id)||v.id<1||!date(v.fecha)||typeof v.concepto!=='string'||!v.concepto.trim()||v.concepto.length>500||!medios.includes(v.forma_pago))throw new Error('Evento venta inválido');\nconst importe=cent(v.importe);if(importe<=0)throw new Error('Venta sin importe positivo');if(importe<=umbral)return [];\nif(!c.CORREO_MARISA||!c.CORREO_REMITENTE)throw new Error('Falta configuración de notificaciones');\nreturn [{json:{clave:`venta.registrada:${v.id}`,tipo:'venta_grande',documento:{venta_id:v.id,umbral_centimos:umbral,importe_centimos:importe,destinatario:c.CORREO_MARISA,remitente:c.CORREO_REMITENTE,asunto:`Paso Firme · Venta grande #${v.id}`,texto:`Venta #${v.id}\\nConcepto: ${v.concepto}\\nImporte: ${euros(importe)}\\nFecha: ${v.fecha}\\nMedio: ${v.forma_pago}`}}}];\n"
+      }
+    },
+    {
+      "id": "fef25442-3c9c-4876-aaca-893ec0a63f23",
+      "name": "Reservar operación",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.7,
+      "position": [
+        720,
+        0
+      ],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO pf_registro(clave,tipo,estado,ejecucion,documento) VALUES($1,$2,'reservado',$3,$4::jsonb) ON CONFLICT DO NOTHING RETURNING clave,documento",
+        "options": {
+          "queryReplacement": "={{ [$json.clave,$json.tipo,$execution.id,JSON.stringify($json.documento)] }}"
+        }
+      },
+      "credentials": {
+        "postgres": {
+          "name": "PF · Registro auxiliar"
+        }
+      }
+    },
+    {
+      "id": "cd5ffb1c-6292-4664-a72d-f33c580278b6",
+      "name": "Comprobar reserva",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        960,
+        0
+      ],
+      "parameters": {
+        "jsCode": "return $input.all().filter(i=>typeof i.json.clave==='string' && i.json.documento);"
+      }
+    },
+    {
+      "id": "96e41c65-1c84-4b32-99de-817bc2eac088",
+      "name": "Enviar aviso",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2.1,
+      "position": [
+        1200,
+        0
+      ],
+      "parameters": {
+        "fromEmail": "={{ $json.documento.remitente }}",
+        "toEmail": "={{ $json.documento.destinatario }}",
+        "subject": "={{ $json.documento.asunto }}",
+        "emailFormat": "text",
+        "text": "={{ $json.documento.texto }}",
+        "options": {
+          "appendAttribution": false
+        }
+      },
+      "credentials": {
+        "smtp": {
+          "name": "PF · Notificaciones"
+        }
+      },
+      "webhookId": "0a91cc97-8c5f-4859-8bf4-95be2892b79a"
+    },
+    {
+      "id": "9de875d6-6df6-4157-9e2e-82eb2ffa244c",
+      "name": "Confirmar envío",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.7,
+      "position": [
+        1440,
+        0
+      ],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE pf_registro SET estado='confirmado', actualizado=now() WHERE clave=$1 AND ejecucion=$2 AND estado='reservado' RETURNING clave,estado",
+        "options": {
+          "queryReplacement": "={{ [$(\"Reservar operación\").item.json.clave,$execution.id] }}"
+        }
+      },
+      "credentials": {
+        "postgres": {
+          "name": "PF · Registro auxiliar"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Recibir venta de PF-00": {
+      "main": [
+        [
+          {
+            "node": "Leer configuración",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Leer configuración": {
+      "main": [
+        [
+          {
+            "node": "Validar venta y umbral",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validar venta y umbral": {
+      "main": [
+        [
+          {
+            "node": "Reservar operación",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Reservar operación": {
+      "main": [
+        [
+          {
+            "node": "Comprobar reserva",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Comprobar reserva": {
+      "main": [
+        [
+          {
+            "node": "Enviar aviso",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Enviar aviso": {
+      "main": [
+        [
+          {
+            "node": "Confirmar envío",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "timezone": "Europe/Madrid",
+    "saveDataErrorExecution": "all",
+    "saveDataSuccessExecution": "all",
+    "callerPolicy": "workflowsFromSameOwner"
+  },
+  "active": false,
+  "pinData": {}
+}

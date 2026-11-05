@@ -8,7 +8,7 @@ from fastapi import BackgroundTasks, Response
 
 from models import abono, apartado, vale
 from schemas.abono import AbonoIn
-from schemas.apartado import ApartadoIn
+from schemas.apartado import ApartadoIn, ConsentimientoIn
 from services import n8n
 
 
@@ -45,3 +45,11 @@ def vencer(apartado_id: int, tareas: BackgroundTasks):
     resultado = apartado.vencer(apartado_id)
     tareas.add_task(n8n.avisar, "apartado.vencido", resultado)
     return resultado
+
+
+def consentimiento(apartado_id: int):
+    return apartado.consultar_consentimiento(apartado_id)
+
+
+def cambiar_consentimiento(apartado_id: int, datos: ConsentimientoIn):
+    return apartado.actualizar_consentimiento(apartado_id, datos.consentimiento_notificaciones)

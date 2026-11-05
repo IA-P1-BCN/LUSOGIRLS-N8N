@@ -1,0 +1,556 @@
+{
+  "name": "PF-07 · Informe mensual",
+  "nodes": [
+    {
+      "id": "178c73d7-c2b5-40ed-896c-181b8f8d994e",
+      "name": "Primer día del mes",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        0,
+        0
+      ],
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 9 1 * *"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "228428a1-2af4-4e30-9597-3027de6f243c",
+      "name": "Leer configuración",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.7,
+      "position": [
+        240,
+        0
+      ],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT COALESCE(jsonb_object_agg(clave,valor),'{}'::jsonb) AS config, $1::jsonb AS entrada FROM pf_config",
+        "options": {
+          "queryReplacement": "={{ [JSON.stringify($json)] }}"
+        }
+      },
+      "credentials": {
+        "postgres": {
+          "name": "PF · Registro auxiliar"
+        }
+      }
+    },
+    {
+      "id": "363a12d0-ba0d-4cdb-8776-8f291a843256",
+      "name": "Fijar período",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        480,
+        0
+      ],
+      "parameters": {
+        "jsCode": "\nconst c=$input.first().json.config;\nif(!c.API_BASE_URL||!/^https?:\\/\\//.test(c.API_BASE_URL)||!c.CORREO_MARISA||!c.CORREO_REMITENTE)throw new Error('Falta configuración del informe');\nconst hoy=$now.setZone('Europe/Madrid');\nconst mes=hoy.minus({months:1});return [{json:{config:c,desde:mes.startOf('month').toISODate(),hasta:mes.endOf('month').toISODate(),medido:hoy.toISO()}}];"
+      }
+    },
+    {
+      "id": "7ed7f642-9be9-4cce-ab59-fb2de178144e",
+      "name": "Consultar ventas",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        720,
+        0
+      ],
+      "parameters": {
+        "url": "={{ $(\"Fijar período\").first().json.config.API_BASE_URL + \"/api/ventas\" + \"?desde=\" + $(\"Fijar período\").first().json.desde + \"&hasta=\" + $(\"Fijar período\").first().json.hasta }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "options": {
+          "timeout": 10000,
+          "response": {
+            "response": {
+              "responseFormat": "json",
+              "fullResponse": true
+            }
+          }
+        }
+      },
+      "credentials": {
+        "httpHeaderAuth": {
+          "name": "PF · API tienda"
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 1000
+    },
+    {
+      "id": "5c308774-2a01-4d48-9cb5-aac132fc6fec",
+      "name": "Consultar abonos",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        960,
+        0
+      ],
+      "parameters": {
+        "url": "={{ $(\"Fijar período\").first().json.config.API_BASE_URL + \"/api/abonos\" + \"?desde=\" + $(\"Fijar período\").first().json.desde + \"&hasta=\" + $(\"Fijar período\").first().json.hasta }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "options": {
+          "timeout": 10000,
+          "response": {
+            "response": {
+              "responseFormat": "json",
+              "fullResponse": true
+            }
+          }
+        }
+      },
+      "credentials": {
+        "httpHeaderAuth": {
+          "name": "PF · API tienda"
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 1000
+    },
+    {
+      "id": "8763788c-5f95-477a-97eb-74aab17219a3",
+      "name": "Consultar apartados",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        1200,
+        0
+      ],
+      "parameters": {
+        "url": "={{ $(\"Fijar período\").first().json.config.API_BASE_URL + \"/api/apartados\" }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "options": {
+          "timeout": 10000,
+          "response": {
+            "response": {
+              "responseFormat": "json",
+              "fullResponse": true
+            }
+          }
+        }
+      },
+      "credentials": {
+        "httpHeaderAuth": {
+          "name": "PF · API tienda"
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 1000
+    },
+    {
+      "id": "3ee42a2f-56dd-4674-9ade-e7037c97b09a",
+      "name": "Consultar vales",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        1440,
+        0
+      ],
+      "parameters": {
+        "url": "={{ $(\"Fijar período\").first().json.config.API_BASE_URL + \"/api/vales\" }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "options": {
+          "timeout": 10000,
+          "response": {
+            "response": {
+              "responseFormat": "json",
+              "fullResponse": true
+            }
+          }
+        }
+      },
+      "credentials": {
+        "httpHeaderAuth": {
+          "name": "PF · API tienda"
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 1000
+    },
+    {
+      "id": "4e408642-077a-44e2-ba68-87019e9f9fe3",
+      "name": "Preparar consultas de detalle",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1680,
+        0
+      ],
+      "parameters": {
+        "jsCode": "\nconst cent=v=>{if(!/^(0|[1-9]\\d*)(\\.\\d{1,2})?$/.test(String(v)))throw new Error('Importe inválido');const [a,b='']=String(v).split('.');const n=Number(a)*100+Number(b.padEnd(2,'0'));if(!Number.isSafeInteger(n))throw new Error('Importe fuera de rango');return n;};\nconst add=(a,b)=>{const n=a+b;if(!Number.isSafeInteger(n))throw new Error('Total fuera de rango');return n;};\nconst euros=n=>(n/100).toFixed(2)+' EUR';\nconst date=v=>typeof v==='string'&&/^\\d{4}-\\d{2}-\\d{2}$/.test(v)&&!Number.isNaN(Date.parse(v))&&new Date(v).toISOString().slice(0,10)===v;\nconst medios=['efectivo','tarjeta','bizum','transferencia'];\nconst list=(r,requireCount=false)=>{if(r.statusCode!==200||!Array.isArray(r.body))throw new Error('Respuesta API incompleta');if(requireCount&&Number(r.headers?.['x-total-count'])!==r.body.length)throw new Error('Lista API incompleta');return r.body;};\nconst totals=(rows,desde,hasta)=>{const by={efectivo:0,tarjeta:0,bizum:0};const ids=new Set();let total=0;for(const r of rows){if(!Number.isSafeInteger(r.id)||r.id<1||ids.has(r.id)||!date(r.fecha)||r.fecha<desde||r.fecha>hasta||!medios.includes(r.forma_pago))throw new Error('Movimiento API inválido');ids.add(r.id);const n=cent(r.importe);if(n<=0)throw new Error('Movimiento sin importe positivo');by[r.forma_pago]=add(by[r.forma_pago]||0,n);total=add(total,n);}return {total,by};};\n\nconst apartados=list($('Consultar apartados').first().json,true),ids=new Set();\nfor(const a of apartados){if(!Number.isSafeInteger(a.id)||a.id<1||ids.has(a.id)||!date(a.fecha)||!['activo','liquidado','vencido'].includes(a.estado))throw new Error('Apartado API inválido');ids.add(a.id);cent(a.pendiente);}\nconst liquidados=apartados.filter(a=>a.estado==='liquidado');\nreturn liquidados.length?liquidados.map(a=>({json:{id:a.id}})):[{json:{sin_liquidados:true}}];\n"
+      }
+    },
+    {
+      "id": "ffcc8577-a51b-4935-8a19-7da45dd5fe9b",
+      "name": "Hay liquidados",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1920,
+        0
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "66b25d1b-2f9e-4b13-972f-0227efd6100b",
+              "leftValue": "={{ !$json.sin_liquidados }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "7f950429-4098-4d36-9458-b24b1f30bb2c",
+      "name": "Consultar detalle",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        2160,
+        0
+      ],
+      "parameters": {
+        "url": "={{ $(\"Fijar período\").first().json.config.API_BASE_URL + \"/api/apartados/\" + $json.id }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "options": {
+          "timeout": 10000,
+          "response": {
+            "response": {
+              "responseFormat": "json",
+              "fullResponse": true
+            }
+          }
+        }
+      },
+      "credentials": {
+        "httpHeaderAuth": {
+          "name": "PF · API tienda"
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 1000
+    },
+    {
+      "id": "2aa66c50-48c5-44d7-b78f-22dd5f3b7c54",
+      "name": "Calcular informe",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2400,
+        0
+      ],
+      "parameters": {
+        "jsCode": "\nconst cent=v=>{if(!/^(0|[1-9]\\d*)(\\.\\d{1,2})?$/.test(String(v)))throw new Error('Importe inválido');const [a,b='']=String(v).split('.');const n=Number(a)*100+Number(b.padEnd(2,'0'));if(!Number.isSafeInteger(n))throw new Error('Importe fuera de rango');return n;};\nconst add=(a,b)=>{const n=a+b;if(!Number.isSafeInteger(n))throw new Error('Total fuera de rango');return n;};\nconst euros=n=>(n/100).toFixed(2)+' EUR';\nconst date=v=>typeof v==='string'&&/^\\d{4}-\\d{2}-\\d{2}$/.test(v)&&!Number.isNaN(Date.parse(v))&&new Date(v).toISOString().slice(0,10)===v;\nconst medios=['efectivo','tarjeta','bizum','transferencia'];\nconst list=(r,requireCount=false)=>{if(r.statusCode!==200||!Array.isArray(r.body))throw new Error('Respuesta API incompleta');if(requireCount&&Number(r.headers?.['x-total-count'])!==r.body.length)throw new Error('Lista API incompleta');return r.body;};\nconst totals=(rows,desde,hasta)=>{const by={efectivo:0,tarjeta:0,bizum:0};const ids=new Set();let total=0;for(const r of rows){if(!Number.isSafeInteger(r.id)||r.id<1||ids.has(r.id)||!date(r.fecha)||r.fecha<desde||r.fecha>hasta||!medios.includes(r.forma_pago))throw new Error('Movimiento API inválido');ids.add(r.id);const n=cent(r.importe);if(n<=0)throw new Error('Movimiento sin importe positivo');by[r.forma_pago]=add(by[r.forma_pago]||0,n);total=add(total,n);}return {total,by};};\n\nconst p=$('Fijar período').first().json;\nconst v=totals(list($('Consultar ventas').first().json,true),p.desde,p.hasta),a=totals(list($('Consultar abonos').first().json),p.desde,p.hasta);\nconst apartados=list($('Consultar apartados').first().json,true),vales=list($('Consultar vales').first().json);\nconst paid=apartados.filter(a=>a.estado==='liquidado');\nconst detalles=$input.all().filter(i=>!i.json.sin_liquidados).map(i=>{if(i.json.statusCode!==200||!i.json.body||Array.isArray(i.json.body))throw new Error('Detalle incompleto');return i.json.body;});\nif(detalles.length!==paid.length||new Set(detalles.map(d=>d.id)).size!==paid.length)throw new Error('Faltan detalles de liquidación');\nconst dentro=f=>{if(!date(f))throw new Error('Fecha API inválida');return f>=p.desde&&f<=p.hasta;};\nlet liquidados=0;\nfor(const d of detalles){if(!paid.some(a=>a.id===d.id)||d.estado!=='liquidado'||!Array.isArray(d.abonos)||!d.abonos.length)throw new Error('Detalle liquidado inválido');for(const b of d.abonos)if(b.apartado_id!==d.id||!date(b.fecha))throw new Error('Abono de detalle inválido');const ultima=d.abonos.map(b=>b.fecha).sort().at(-1);if(dentro(ultima))liquidados++;}\nconst valeIds=new Set(),apartadoIds=new Set();for(const vale of vales){if(!Number.isSafeInteger(vale.id)||valeIds.has(vale.id)||apartadoIds.has(vale.apartado_id)||!apartados.some(a=>a.id===vale.apartado_id&&a.estado==='vencido'))throw new Error('Vale API inválido');valeIds.add(vale.id);apartadoIds.add(vale.apartado_id);}\nconst pendiente=apartados.filter(a=>a.estado==='activo').reduce((n,a)=>add(n,cent(a.pendiente)),0);\nconst nuevos=apartados.filter(a=>dentro(a.fecha)).length,vencidos=vales.filter(v=>dentro(v.fecha)).length,total=add(v.total,a.total);\nconst documento={periodo_desde:p.desde,periodo_hasta:p.hasta,ventas_centimos:v.total,abonos_centimos:a.total,total_centimos:total,pendiente_actual_centimos:pendiente,pendiente_medido_en:p.medido,nuevos,liquidados,vencidos,destinatario:p.config.CORREO_MARISA,remitente:p.config.CORREO_REMITENTE,asunto:`Paso Firme · Informe ${p.desde.slice(0,7)}`,texto:`Informe ${p.desde} a ${p.hasta}\\nConcepto | Importe\\nVentas directas | ${euros(v.total)}\\nAbonos | ${euros(a.total)}\\nTotal recaudado | ${euros(total)}\\nPendiente actual (medido ${p.medido}, no histórico) | ${euros(pendiente)}\\nNuevos: ${nuevos}\\nLiquidados: ${liquidados}\\nVencidos: ${vencidos}${total===0?'\\nSin cobros en el período.':''}`};\nreturn [{json:{clave:`informe:${p.desde.slice(0,7)}:${p.config.CORREO_MARISA}`,tipo:'informe_mensual',documento}}];\n"
+      }
+    },
+    {
+      "id": "6c7a1a3d-6614-439f-b77d-27d2b03cf9d4",
+      "name": "Reservar operación",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.7,
+      "position": [
+        2640,
+        0
+      ],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO pf_registro(clave,tipo,estado,ejecucion,documento) VALUES($1,$2,'reservado',$3,$4::jsonb) ON CONFLICT DO NOTHING RETURNING clave,documento",
+        "options": {
+          "queryReplacement": "={{ [$json.clave,$json.tipo,$execution.id,JSON.stringify($json.documento)] }}"
+        }
+      },
+      "credentials": {
+        "postgres": {
+          "name": "PF · Registro auxiliar"
+        }
+      }
+    },
+    {
+      "id": "e03d5b06-1979-4c01-bdb0-a32423d0d7d2",
+      "name": "Comprobar reserva",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2880,
+        0
+      ],
+      "parameters": {
+        "jsCode": "return $input.all().filter(i=>typeof i.json.clave==='string' && i.json.documento);"
+      }
+    },
+    {
+      "id": "cb11bf21-6324-4f43-9da3-305665c2ba13",
+      "name": "Enviar aviso",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2.1,
+      "position": [
+        3120,
+        0
+      ],
+      "parameters": {
+        "fromEmail": "={{ $json.documento.remitente }}",
+        "toEmail": "={{ $json.documento.destinatario }}",
+        "subject": "={{ $json.documento.asunto }}",
+        "emailFormat": "text",
+        "text": "={{ $json.documento.texto }}",
+        "options": {
+          "appendAttribution": false
+        }
+      },
+      "credentials": {
+        "smtp": {
+          "name": "PF · Notificaciones"
+        }
+      },
+      "webhookId": "d5a74fdf-56cc-4cba-94e8-fdd4cb6f1347"
+    },
+    {
+      "id": "e3a8a250-a269-4b13-bff9-1bf2da8399a3",
+      "name": "Confirmar envío",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.7,
+      "position": [
+        3360,
+        0
+      ],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE pf_registro SET estado='confirmado', actualizado=now() WHERE clave=$1 AND ejecucion=$2 AND estado='reservado' RETURNING clave,estado",
+        "options": {
+          "queryReplacement": "={{ [$(\"Reservar operación\").item.json.clave,$execution.id] }}"
+        }
+      },
+      "credentials": {
+        "postgres": {
+          "name": "PF · Registro auxiliar"
+        }
+      }
+    },
+    {
+      "id": "93e1d86e-00ea-4142-9d7e-6ead206e03a5",
+      "name": "Ejecutar comprobación",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        3600,
+        0
+      ],
+      "parameters": {}
+    }
+  ],
+  "connections": {
+    "Primer día del mes": {
+      "main": [
+        [
+          {
+            "node": "Leer configuración",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Leer configuración": {
+      "main": [
+        [
+          {
+            "node": "Fijar período",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fijar período": {
+      "main": [
+        [
+          {
+            "node": "Consultar ventas",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Consultar ventas": {
+      "main": [
+        [
+          {
+            "node": "Consultar abonos",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Consultar abonos": {
+      "main": [
+        [
+          {
+            "node": "Consultar apartados",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Consultar apartados": {
+      "main": [
+        [
+          {
+            "node": "Consultar vales",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Consultar vales": {
+      "main": [
+        [
+          {
+            "node": "Preparar consultas de detalle",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Preparar consultas de detalle": {
+      "main": [
+        [
+          {
+            "node": "Hay liquidados",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Hay liquidados": {
+      "main": [
+        [
+          {
+            "node": "Consultar detalle",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Calcular informe",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Consultar detalle": {
+      "main": [
+        [
+          {
+            "node": "Calcular informe",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Calcular informe": {
+      "main": [
+        [
+          {
+            "node": "Reservar operación",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Reservar operación": {
+      "main": [
+        [
+          {
+            "node": "Comprobar reserva",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Enviar aviso": {
+      "main": [
+        [
+          {
+            "node": "Confirmar envío",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Ejecutar comprobación": {
+      "main": [
+        [
+          {
+            "node": "Leer configuración",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Comprobar reserva": {
+      "main": [
+        [
+          {
+            "node": "Enviar aviso",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "timezone": "Europe/Madrid",
+    "saveDataErrorExecution": "all",
+    "saveDataSuccessExecution": "all",
+    "callerPolicy": "workflowsFromSameOwner"
+  },
+  "active": false,
+  "pinData": {}
+}

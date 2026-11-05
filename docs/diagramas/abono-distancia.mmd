@@ -1,0 +1,30 @@
+flowchart TB
+  A([PF-03 recibe correo por IMAP]) --> B[Preparar texto y pedir extracción a OpenRouter<br/>La IA no consulta saldos ni registra pagos]
+  B --> C{¿Salida válida y<br/>correo de pago?}
+  C -->|No es pago| D([Ignorar sin cobros ni avisos<br/>Puede haber falsos negativos del modelo])
+  C -->|Salida inválida| X[Error técnico → PF-08<br/>Sin reserva de correo ni abono]
+  C -->|Pago| I[Reservar correo atómicamente en PostgreSQL<br/>Clave: cuenta + Message-ID]
+  I --> J{¿Reserva obtenida?}
+  J -->|No| K([Duplicado o ya reservado<br/>Sin consultar apartados ni repetir el POST])
+  J -->|Sí| F[Consultar apartados en la API<br/>Contrastar nombre, concepto e ID]
+  F --> G{¿Un único candidato<br/>claro y coherente?}
+  G -->|No| E[Registrar revisión y avisar a Marisa<br/>No registrar abono]
+  G -->|Sí| R[Intentar bloqueo exclusivo por apartado]
+  R --> S{¿Bloqueo obtenido?}
+  S -->|No| E
+  S -->|Sí| T[Releer saldo del apartado por API]
+  T --> H{¿Activo, en plazo y<br/>0 menor que importe menor o igual a pendiente?}
+  H -->|No| E
+  H -->|Sí| L[POST abono por API<br/>Bizum o transferencia, sin reintento automático]
+  L --> M{¿Resultado confirmado?}
+  M -->|Sí| N[Guardar resultado y liberar bloqueo<br/>API emite abono.registrado]
+  M -->|No o incierto| O[Conciliar por API o revisión de Marisa<br/>No repetir un cobro a ciegas]
+  N --> P[PF-00 → PF-02<br/>Recibo y, si liquidado, aviso de recogida]
+  P --> Q([Abono terminado])
+
+  classDef proceso fill:#e0f4ef,stroke:#26745f,color:#173e34;
+  classDef revision fill:#fff3d6,stroke:#986600,color:#312700;
+  classDef decision fill:#fff,stroke:#475569,color:#172033;
+  class B,F,I,R,T,L,N,P proceso;
+  class E,O,X revision;
+  class C,G,H,J,S,M decision;

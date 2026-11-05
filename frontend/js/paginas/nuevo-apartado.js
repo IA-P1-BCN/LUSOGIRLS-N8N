@@ -26,6 +26,10 @@ principal.innerHTML = `
           <input id="email" name="email" type="email" autocomplete="email">
           <span class="hint">Para enviarle la confirmación y los recordatorios.</span></div>
       </div>
+      <label style="display:flex;align-items:flex-start;gap:10px;margin-top:16px">
+        <input style="width:auto;margin-top:4px" type="checkbox" name="consentimiento_notificaciones">
+        <span>El cliente ha autorizado recibir por correo las confirmaciones, recibos, recordatorios y avisos de vale de este apartado. Puede retirar la autorización desde el detalle.</span>
+      </label>
     </fieldset>
     <fieldset>
       <legend>Zapatos</legend>
@@ -64,6 +68,7 @@ document.getElementById("formulario").addEventListener("submit", async (evento) 
       cliente: f.get("cliente"),
       telefono: f.get("telefono") || null,
       email: f.get("email") || null,
+      consentimiento_notificaciones: f.get("consentimiento_notificaciones") === "on",
       producto: f.get("producto"),
       talla: f.get("talla") || null,
       precio: Number(f.get("precio")),
